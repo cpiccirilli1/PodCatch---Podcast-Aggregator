@@ -27,10 +27,10 @@ class podData:
 			(self.date, self.published, self.series, self.title, self.ep_src, self.hdpath, self.shortname, self.downloaded))
 		self.connPass.commit()
 
-	def episodeUpdate(self):
-		self.curPass.execute('SELECT * FROM episode')
-		data = self.curPass.fetchall()
-		return data	
+	def episodeUpdate(self, dl):
+		self.curPass.execute('UPDATE episode SET downloaded=? WHERE title=?', (dl, self.title,))
+		self.connPass.commit()
+
 
 	def episodeRecent(self):
 		self.curPass.execute('SELECT series, title, created, downloaded FROM episode ORDER BY created DESC LIMIT 10')

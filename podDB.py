@@ -1,7 +1,9 @@
+#!/usr/bin/python3
+
 import sqlite3 as lite
 
 class podData:
-	def __init__(self, series=None, src=None, title=None, hdpath=None, connPass=None, curPass=None, date=None, published=None, shortname=None):
+	def __init__(self, series=None, src=None, title=None, hdpath=None, connPass=None, curPass=None, date=None, published=None, shortname=None, downloaded='No'):
 		self.series = series #Title of the Series
 		self.ep_src = src #episode url
 		self.sub_src = src #RSS Feed URL
@@ -11,26 +13,27 @@ class podData:
 		self.published = published #When episode was posted to the www. 
 		self.curPass=curPass #passes through current cursor
 		self.connPass = connPass #passes through current connection
-		self.shortname = shortname
+		self.shortname = shortname #gathered from the args.name, used as an easy identifier for users
+		self.downloaded = downloaded #self explanatory.
 	def episodeTable(self):
 		'''
 		creates table for episodes: Time it was added, time published, series name, MP3 url,
 		title of the episode, and where it is stored.
 		'''
-		self.curPass.execute("CREATE TABLE IF NOT EXISTS episode(datestamp TEXT, created TEXT UNIQUE,series TEXT, mp3url TEXT, title TEXT, mp3path TEXT, shortname TEXT)")
+		self.curPass.execute("CREATE TABLE IF NOT EXISTS episode(datestamp TEXT, created TEXT UNIQUE,series TEXT, mp3url TEXT, title TEXT, mp3path TEXT, shortname TEXT, downloaded TEXT)")
 
 	def episodeAdd(self):
-		self.curPass.execute('INSERT OR IGNORE INTO episode(datestamp, created, series, title, mp3url, mp3path, shortname) VALUES(?, ?, ?, ?, ?, ?, ?)',
-			(self.date, self.published, self.series, self.title, self.ep_src, self.hdpath, self.shortname))
+		self.curPass.execute('INSERT OR IGNORE INTO episode(datestamp, created, series, title, mp3url, mp3path, shortname, downloaded) VALUES(?, ?, ?, ?, ?, ?, ?, ?)',
+			(self.date, self.published, self.series, self.title, self.ep_src, self.hdpath, self.shortname, self.downloaded))
 		self.connPass.commit()
 
-	def episodeRead(self):
+	def episodeUpdate(self):
 		self.curPass.execute('SELECT * FROM episode')
 		data = self.curPass.fetchall()
 		return data	
 
 	def episodeRecent(self):
-		self.curPass.execute('SELECT series, title, created FROM episode ORDER BY created DESC LIMIT 10')
+		self.curPass.execute('SELECT series, title, created, downloaded FROM episode ORDER BY created DESC LIMIT 10')
 		data = self.curPass.fetchall()
 		return data	
 

@@ -9,7 +9,6 @@ from podDB import podData as pod
 
 datefmt = dt.strftime(dt.now(), '%Y/%m/%d %I:%M %p')
 
-
 def encl_Feed(request):
 	'''
 	Gets xml doc from rss source. Checks for enclosure tags.
@@ -51,18 +50,7 @@ def dataBasePopulate(connPass, curPass, args):
 					epDB.episodeAdd()
 					if args.verbose:
 						print('[+] '+ attrib[1], attrib[2])
-					'''
-					if not check[0]:
-						print('Something went wrong with creating directories: {}'.format(check[1]))	
-					else:	
-						if attrib[1] in podDir:
-							print('[-] You already have that episode!')
-						else:	
-							pass
-							#print('[+] '+ attrib[1], attrib[2])
-							#writer = ww(title=fullLocation, src=attrib[2])
-							#writer.fileWriter()
-						'''
+
 def directoryCheck(path):
 	'''
 	Checks to see if folder exists and if not
@@ -79,15 +67,19 @@ def directoryCheck(path):
 	return (True, 'No Error')	
 
 def dateConvert(date):
-	#"Wed, 07 Sep 2016 23:00:00 -0400"
+	'''
+	Converts date from original and returns fmt.
+	'''
 	original = dt.strptime(date, "%a, %d %b %Y %H:%M:%S %z")
 	fmt = dt.strftime(original, '%Y/%m/%d %I:%M %p')
 	return fmt
 
 def subscriptionUpdater (args, connPass, curPass):
-	
+	'''
+	Manages podcast subscriptions.
+	'''
 	if args.feed or args.rfeed or args.view:
-		if args.feed:
+		if args.feed: #makes the use of args.name mandatory. 
 			if args.name==None:
 				print('Please enter a name for subscribing to a new series.')
 				print('Usage: podcatch.py -f <"URL"> --name <"short name for series">')
@@ -115,17 +107,23 @@ def subscriptionUpdater (args, connPass, curPass):
 			pass		
 
 def subsView(subsData):
+	'''
+	Displays current subscriptions.
+	'''
 	for line in subsData.subsRead():
 				print('[+] {0} added at {1}'.format(line[1], line[0]))
 
 def episodeView(passThru):
-	
-	for line in passThru.episodeRecent():
-		print("[+]{0}".format(line))
+	'''
+	Displays last 10 episodes to be entered into database.
+	'''
+	for enum, line in enumerate(passThru.episodeRecent()):
+		print("""[+] {4} {0}: {1}
+		{2} -- Downloaded: {3}""".format(line[0], line[2], line[1], line[3], enum+1))
 
 def subLoad(connPass, curPass):
 	"""
-	Updates subscriptions based on a text file of url sources. 
+	Updates subscriptions based on a text file list of url sources. 
 	"""
 	with open('subs', 'r') as subs:
 		for line in subs:

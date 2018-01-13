@@ -1,6 +1,10 @@
 #!/usr/bin/python3
-
-import sqlite3 as lite
+'''
+v0.0.1
+Custom module for database management and executions in sqlite3. 
+Importing sqlite3 isn't currently necessary but may become so in the future.
+'''
+#import sqlite3 as lite
 
 class podData:
 	def __init__(self, series=None, src=None, title=None, hdpath=None, connPass=None, curPass=None, date=None, published=None, shortname=None, downloaded='No'):
@@ -27,15 +31,20 @@ class podData:
 			(self.date, self.published, self.series, self.title, self.ep_src, self.hdpath, self.shortname, self.downloaded))
 		self.connPass.commit()
 
-	def episodeUpdate(self, dl):
-		self.curPass.execute('UPDATE episode SET downloaded=? WHERE title=?', (dl, self.title,))
+	def episodeUpdate(self, dl, create):
+		self.curPass.execute('UPDATE episode SET downloaded=? WHERE created=?', (dl, create,))
 		self.connPass.commit()
 
 
 	def episodeRecent(self):
-		self.curPass.execute('SELECT series, title, created, downloaded FROM episode ORDER BY created DESC LIMIT 10')
+		self.curPass.execute('SELECT series, title, mp3url, mp3path, created, shortname downloaded FROM episode ORDER BY created DESC LIMIT 10')
 		data = self.curPass.fetchall()
 		return data	
+
+	def seriesDownload(self, shortname):
+		self.curPass.execute('SELECT series, title, mp3url, mp3path, created, shortname downloaded FROM episode WHERE shortname=?  ORDER BY created', (shortname,))		
+		data=self.curPass.fetchall()
+		return data
 
 	def subsTable(self):
 		self.curPass.execute("CREATE TABLE IF NOT EXISTS subscriptions(datestamp TEXT, series TEXT UNIQUE, subsrc TEXT)")
@@ -52,4 +61,4 @@ class podData:
 
 	def subsDelete(self, name):
 		self.curPass.execute('DELETE FROM subscriptions WHERE series=?', (name,))
-		self.connPass.commit()					
+		self.connPass.commit()

@@ -3,9 +3,9 @@ import os, argparse
 from pathlib import Path
 import sqlite3
 from datetime import datetime as dt
-import feedparser
-from writer import Writer as ww
-from podDB import podData as pod
+#import feedparser
+from writer import Writer as ww #personal module, use if you find useful.
+from podDB import podData as pod #personal module, use if you find useful
 
 datefmt = dt.strftime(dt.now(), '%Y/%m/%d %I:%M %p')
 
@@ -111,15 +111,7 @@ def subsView(subsData):
 	Displays current subscriptions.
 	'''
 	for line in subsData.subsRead():
-				print('[+] {0} added at {1}'.format(line[1], line[0]))
-
-def episodeView(passThru):
-	'''
-	Displays last 10 episodes to be entered into database.
-	'''
-	for enum, line in enumerate(passThru.episodeRecent()):
-		print("""[+] {4} {0}: {1}
-		{2} -- Downloaded: {3}""".format(line[0], line[2], line[1], line[3], enum+1))
+		print('[+] {0} added at {1}'.format(line[1], line[0]))
 
 def subLoad(connPass, curPass):
 	"""
@@ -137,6 +129,50 @@ def subLoad(connPass, curPass):
 			subsData.subsAdd()
 			print ("[+] {0} has been added.".format(name))
 
+def seriesDownload(connPass, curPass):
+	'''
+	Lists subscriptions, then episodes related to subscription numbered, finally
+	passes to writer module and uses requests to download file.
+
+	create way to update downloaded collumn in database. Check if functioning.
+	'''
+
+	sdl = pod(connPass=connPass, curPass=curPass)
+	subsView(sdl)
+	series=input("What series would you like to download from?: ")
+	for en, row in enumerate(sdl.seriesDownload(series)):
+		print ('''[{0}] {1}
+	{2}\n'''.format(str(en), row[1], row[4])) 
+
+	number=input('Which number(s) would you like to download (without brackets)? Separate with spaces: ')
+	number=number.split(' ')
+	for en, row in enumerate(sdl.seriesDownload(series)):	
+		if str(en) in number:
+			#enscribe = ww(title=row[3], src=row[2])
+			#enscribe.fileWriter()
+			print('\n[+] {0}: {1} is downloading...'.format(row[0], row[1]))
+			sdl.episodeUpdate("yes", row[4])
+			
+def recentEpsDL(connPass, curPass):
+	'''
+	Displays last 10 episodes to be entered into database.
+
+	Create way to update downloaded collumn in database. check if functioning.
+	'''
+	passThru = pod(connPass=connPass, curPass=curPass)
+	for en, row in enumerate(passThru.episodeRecent()):
+		print ('''[{0}] {1}
+	{2} {3}\n'''.format(str(en), row[0], row[1], row[4]))
+
+	number=input('Which number(s) would you like to download (without brackets)? Separate with spaces: ')
+	number = number.split(' ')
+	for en, row in enumerate(passThru.episodeRecent()):
+		if str(en) in number:
+			#enscribe = ww(title=row[3], src=row[2])
+			#enscribe.fileWriter()
+			print('\n[+] {0}: {1} is downloading...'.format(row[0], row[1]))
+			passThru.episodeUpdate("yes", row[4])	
+
 
 
 def main():
@@ -145,10 +181,12 @@ def main():
 	parser.add_argument('--name', dest='name', help='Identifies feed subscription by name you gave when subscribing. Names must be in quotation marks.')
 	parser.add_argument('-r', dest='rfeed', help='Removes a feed from the subscription list. Must be in quotation marks.', action="store_true")
 	parser.add_argument('--update', dest ='update', help='Checks for new updates.', action='store_true')
-	parser.add_argument('-v', dest='view', help='Displays current subscriptions.', action='store_true')
+	parser.add_argument('-view', dest='view', help='Displays current subscriptions.', action='store_true')
 	parser.add_argument('-q', dest="verbose", action="store_true", help="Displays more information about what the database is doing.")
 	parser.add_argument('--recent', dest='recent', help='Gets the most recent episode.', action='store_true')
 	parser.add_argument('--load', dest='load', action='store_true', help='Loads urls of feeds into database.')
+	parser.add_argument('--test', dest='test', action='store_true', help='command for helping to test variables.')
+	parser.add_argument('--tips', dest='test', action='store_true', help='tips for podcatch use')
 	args = parser.parse_args()
 
 	conn = sqlite3.connect('podbase.db')
@@ -165,10 +203,13 @@ def main():
 		dataBasePopulate(conn, c, args)
 
 	if args.recent:
-		episodeView(tables)
+		recentEpsDL(conn, c)
 
 	if args.load:
-		subLoad(conn, c)	
+		subLoad(conn, c)
+
+	if args.test:
+		seriesDownload(conn, c)		
 
 	c.close()
 	conn.close()

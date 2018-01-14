@@ -236,15 +236,15 @@ def recentEpsDL(connPass, curPass):
 
 def main():
 	parser = argparse.ArgumentParser()
-	parser.add_argument('-f', dest='feed', help="Adds a new feed to the subscription list.")
+	parser.add_argument('-f', dest='feed', help="Adds a new feed to the subscription list. Must be used with --name. -q is optional use. ")
 	parser.add_argument('--name', dest='name', help='Identifies feed subscription by name you gave when subscribing. Names must be in quotation marks.')
 	parser.add_argument('-r', dest='rfeed', help='Removes a feed from the subscription list. Must be in quotation marks.', action="store_true")
-	parser.add_argument('--update', dest ='update', help='Checks for new updates.', action='store_true')
+	parser.add_argument('--update', dest ='update', help='Checks for new updates. Can be used with -q', action='store_true')
 	parser.add_argument('-view', dest='view', help='Displays current subscriptions.', action='store_true')
 	parser.add_argument('-q', dest="verbose", action="store_true", help="Displays more information about what the database is doing.")
 	parser.add_argument('--recent', dest='recent', help='Gets the most recent episode.', action='store_true')
-	parser.add_argument('--load', dest='load', action='store_true', help='Loads urls of feeds into database.')
-	parser.add_argument('--series', dest='series', action='store_true', help='command for helping to test variables.')
+	parser.add_argument('--load', dest='load', action='store_true', help='Loads urls of feeds into database from subs.txt file.')
+	parser.add_argument('--series', dest='series', action='store_true', help='Displays all episodes of the series. Can be used with --name.')
 	parser.add_argument('--tips', dest='test', action='store_true', help='tips for podcatch use')
 	args = parser.parse_args()
 

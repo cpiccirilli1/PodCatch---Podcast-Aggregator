@@ -260,6 +260,10 @@ def main():
 
 	if args.update:
 		dataBasePopulate(conn, c, args)
+		print("Would you like to see recent episodes?")
+		rec = input("Y/n")
+		if rec.lower() == 'y':
+			recentEpsDL(conn, c)
 
 	if args.recent:
 		recentEpsDL(conn, c)

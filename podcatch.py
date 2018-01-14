@@ -46,7 +46,7 @@ def dataBasePopulate(connPass, curPass, args):
 						dl="No"
 						check = directoryCheck(podPath) #checks whether directory exists. 
 						if not check:
-							return(check[1])
+							return("Error occured while making directories: "+check[1])
 					else:
 						dl="Yes"	
 

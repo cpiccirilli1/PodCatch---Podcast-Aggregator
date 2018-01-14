@@ -26,7 +26,7 @@ def dataBasePopulate(connPass, curPass, args):
 	'''
 	Populates a database of episode (paths, titles, src, datepopulated, and others) from the subscriptions.
 	Creates download locations and the file path to the future episode.
-	Need to make a way to choose which you can get and ask for default save location.
+	Need to make a way to ask for default save location.
 	'''
 	print('Updating Database... This may take a moment.')
 	home=str(Path.home())
@@ -39,17 +39,24 @@ def dataBasePopulate(connPass, curPass, args):
 			if i.startswith('http'):
 				l = encl_Feed(i)
 	
-				for attrib in l: #divides for writer.Writer() and episodeAdd()
+				for attrib in l: #divides for episodeAdd()
 					podPath = os.path.join(path, attrib[0])
-					check = directoryCheck(podPath)
-					podDir = os.listdir(podPath)
 					fullLocation = os.path.join(podPath, attrib[1]+'.mp3')
-			
-					epDB = pod(shortname=line[1] ,published=dateConvert(attrib[3]), date=datefmt ,connPass=connPass, curPass=curPass, src=attrib[2], series=attrib[0], title=attrib[1], hdpath=fullLocation)
+					if not os.path.isfile(fullLocation): # checks whether file exists, sets dl to "No".
+						dl="No"
+						check = directoryCheck(podPath) #checks whether directory exists. 
+						if not check:
+							return(check[1])
+					else:
+						dl="Yes"	
+
+
+					epDB = pod(downloaded=dl, shortname=line[1] ,published=dateConvert(attrib[3]), date=datefmt ,connPass=connPass, curPass=curPass, src=attrib[2], series=attrib[0], title=attrib[1], hdpath=fullLocation)
 					epDB.episodeTable()
 					epDB.episodeAdd()
 					if args.verbose:
-						print('[+] '+ attrib[1], attrib[2])
+						print('[+] {0}: {1}'.format(attrib[1], attrib[2]))
+
 
 def directoryCheck(path):
 	'''
@@ -88,6 +95,8 @@ def subscriptionUpdater (args, connPass, curPass):
 		subsData = pod(date=datefmt, series=args.name, src=args.feed, curPass = curPass, connPass=connPass)
 		
 		if args.feed:
+			enscribe=ww(title='subs.txt', text=args.feed) #instantiates for txtWriter()
+			enscribe.txtWriter() #appends whatever rss urls to subs.txt
 			subsData.subsAdd()
 		elif args.rfeed:
 			subsView(subsData)
@@ -117,7 +126,8 @@ def subLoad(connPass, curPass):
 	"""
 	Updates subscriptions based on a text file list of url sources. 
 	"""
-	with open('subs', 'r') as subs:
+
+	with open('subs.txt', 'r') as subs:
 		for line in subs:
 			print(line)
 			name = input('[+] Give me a shortname for the above feed: ')
@@ -128,6 +138,13 @@ def subLoad(connPass, curPass):
 			subsData = pod(date=datefmt, series=name, src=line2, curPass = curPass, connPass=connPass)
 			subsData.subsAdd()
 			print ("[+] {0} has been added.".format(name))
+
+def numberCheck(number):
+	for n in number:
+		if not int(n):
+			return False, n
+		else:
+			return True		
 
 def seriesDownload(connPass, curPass):
 	'''
@@ -146,13 +163,24 @@ def seriesDownload(connPass, curPass):
 
 	number=input('Which number(s) would you like to download (without brackets)? Separate with spaces: ')
 	number=number.split(' ')
+	verify=numberCheck(number)
+
+	if not verify[0]:
+		print(verify[1])
+		return
+
 	for en, row in enumerate(sdl.seriesDownload(series)):	
 		if str(en) in number:
-			#enscribe = ww(title=row[3], src=row[2])
-			#enscribe.fileWriter()
-			print('\n[+] {0}: {1} is downloading...'.format(row[0], row[1]))
-			sdl.episodeUpdate("yes", row[4])
-			
+			if not os.path.isfile(row[3])	
+				#enscribe = ww(title=row[3], src=row[2])
+				#enscribe.fileWriter()
+				
+				print('\n[+] {0}: {1} is downloading...'.format(row[0], row[1]))
+				passThru.episodeUpdate("yes", row[1])	
+			else:
+				print('\n[-] {0}: {1} already exists at path {2}.'.format(row[0], row[1], row[3]))
+
+
 def recentEpsDL(connPass, curPass):
 	'''
 	Displays last 10 episodes to be entered into database.
@@ -166,14 +194,22 @@ def recentEpsDL(connPass, curPass):
 
 	number=input('Which number(s) would you like to download (without brackets)? Separate with spaces: ')
 	number = number.split(' ')
+	verify=numberCheck(number)
+
+	if not verify[0]:
+		print(verify[1])
+		return
+
 	for en, row in enumerate(passThru.episodeRecent()):
 		if str(en) in number:
-			#enscribe = ww(title=row[3], src=row[2])
-			#enscribe.fileWriter()
-			print('\n[+] {0}: {1} is downloading...'.format(row[0], row[1]))
-			passThru.episodeUpdate("yes", row[4])	
-
-
+			if not os.path.isfile(row[3])	
+				#enscribe = ww(title=row[3], src=row[2])
+				#enscribe.fileWriter()
+				
+				print('\n[+] {0}: {1} is downloading...'.format(row[0], row[1]))
+				passThru.episodeUpdate("yes", row[1])	
+			else:
+				print('\n[-] {0}: {1} already exists at path {2}.'.format(row[0], row[1], row[3]))	
 
 def main():
 	parser = argparse.ArgumentParser()

@@ -31,8 +31,8 @@ class podData:
 			(self.date, self.published, self.series, self.title, self.ep_src, self.hdpath, self.shortname, self.downloaded))
 		self.connPass.commit()
 
-	def episodeUpdate(self, dl, create):
-		self.curPass.execute('UPDATE episode SET downloaded=? WHERE created=?', (dl, create,))
+	def episodeUpdate(self, dl, name):
+		self.curPass.execute('UPDATE episode SET downloaded=? WHERE title=?', (dl, name,))
 		self.connPass.commit()
 
 

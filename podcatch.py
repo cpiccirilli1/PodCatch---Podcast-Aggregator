@@ -3,7 +3,7 @@ import os, argparse
 from pathlib import Path
 import sqlite3
 from datetime import datetime as dt
-#import feedparser
+import feedparser
 from writer import Writer as ww #personal module, use if you find useful.
 from podDB import podData as pod #personal module, use if you find useful
 

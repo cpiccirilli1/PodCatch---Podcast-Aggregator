@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import os, argparse
+from sys import exit
 from pathlib import Path
 import sqlite3
 from datetime import datetime as dt
@@ -97,7 +98,16 @@ def subscriptionUpdater (args, connPass, curPass):
 		if args.feed:
 			enscribe=ww(title='subs.txt', text=args.feed) #instantiates for txtWriter()
 			enscribe.txtWriter() #appends whatever rss urls to subs.txt
-			subsData.subsAdd()
+			subsData.subsAdd() #needs feed already exists handling. :)
+			print ("Subscription added! Database will update...please wait just a moment.")
+			dataBasePopulate(connPass, curPass, args)
+			print('Would you like to view the episodes?')
+			eps = input('y/n: ')
+			if eps.lower() == 'y':
+				print('Ok!')
+				
+				seriesDownload(connPass, curPass, args)
+					
 		elif args.rfeed:
 			subsView(subsData)
 			if args.name == None:
@@ -139,14 +149,9 @@ def subLoad(connPass, curPass):
 			subsData.subsAdd()
 			print ("[+] {0} has been added.".format(name))
 
-def numberCheck(number):
-	for n in number:
-		if not int(n):
-			return False, n
-		else:
-			return True		
 
-def seriesDownload(connPass, curPass):
+
+def seriesDownload(connPass, curPass, args):
 	'''
 	Lists subscriptions, then episodes related to subscription numbered, finally
 	passes to writer module and uses requests to download file.
@@ -155,28 +160,40 @@ def seriesDownload(connPass, curPass):
 	'''
 
 	sdl = pod(connPass=connPass, curPass=curPass)
-	subsView(sdl)
-	series=input("What series would you like to download from?: ")
-	for en, row in enumerate(sdl.seriesDownload(series)):
+	
+	if args.name:
+		series = args.name
+		seriesFunc = sdl.seriesDownload(series)
+	else:
+		subsView(sdl)
+		series=input("What series would you like to download from?: ")
+		seriesFunc = sdl.seriesDownload(series)	
+	
+	for en, row in enumerate(seriesFunc):
 		print ('''[{0}] {1}
 	{2}\n'''.format(str(en), row[1], row[4])) 
-
-	number=input('Which number(s) would you like to download (without brackets)? Separate with spaces: ')
+	print('Which number(s) would you like to download (without brackets)? Separate with spaces:')	
+	print('Press ctrl+c to exit.')
+	try:
+		number=input('> ')
+	except KeyboardInterrupt:
+		print("Goodbye.")
+		exit()
 	number=number.split(' ')
-	verify=numberCheck(number)
+	verify=all(isinstance(int(item), int) for item in number)
 
-	if not verify[0]:
-		print(verify[1])
+	if not verify:
+		print("Entry is not a number.")
 		return
 
 	for en, row in enumerate(sdl.seriesDownload(series)):	
 		if str(en) in number:
 			if not os.path.isfile(row[3]):	
+				print('\n[+] {0}: {1} is downloading...'.format(row[0], row[1]))
+				sdl.episodeUpdate("yes", row[1])
 				enscribe = ww(title=row[3], src=row[2])
 				enscribe.fileWriter()
-				
-				print('\n[+] {0}: {1} is downloading...'.format(row[0], row[1]))
-				passThru.episodeUpdate("yes", row[1])	
+					
 			else:
 				print('\n[-] {0}: {1} already exists at path {2}.'.format(row[0], row[1], row[3]))
 
@@ -192,22 +209,28 @@ def recentEpsDL(connPass, curPass):
 		print ('''[{0}] {1}
 	{2} {3}\n'''.format(str(en), row[0], row[1], row[4]))
 
-	number=input('Which number(s) would you like to download (without brackets)? Separate with spaces: ')
+	print('Which number(s) would you like to download (without brackets)? Separate with spaces:')	
+	print('Press ctrl+c to exit.')
+	try:	
+		number=input("> ")
+	except KeyboardInterrupt:
+		print('Goodbye.')
+		exit()
 	number = number.split(' ')
-	verify=numberCheck(number)
+	verify=all(isinstance(int(item), int) for item in number)
 
-	if not verify[0]:
-		print(verify[1])
+	if not verify:
+		print("Entry is not a number.")
 		return
 
 	for en, row in enumerate(passThru.episodeRecent()):
 		if str(en) in number:
 			if not os.path.isfile(row[3]):	
+				print('\n[+] {0}: {1} is downloading...'.format(row[0], row[1]))
+				passThru.episodeUpdate("yes", row[1])
 				enscribe = ww(title=row[3], src=row[2])
 				enscribe.fileWriter()
-				
-				print('\n[+] {0}: {1} is downloading...'.format(row[0], row[1]))
-				passThru.episodeUpdate("yes", row[1])	
+	
 			else:
 				print('\n[-] {0}: {1} already exists at path {2}.'.format(row[0], row[1], row[3]))	
 
@@ -221,7 +244,7 @@ def main():
 	parser.add_argument('-q', dest="verbose", action="store_true", help="Displays more information about what the database is doing.")
 	parser.add_argument('--recent', dest='recent', help='Gets the most recent episode.', action='store_true')
 	parser.add_argument('--load', dest='load', action='store_true', help='Loads urls of feeds into database.')
-	parser.add_argument('--test', dest='test', action='store_true', help='command for helping to test variables.')
+	parser.add_argument('--series', dest='series', action='store_true', help='command for helping to test variables.')
 	parser.add_argument('--tips', dest='test', action='store_true', help='tips for podcatch use')
 	args = parser.parse_args()
 
@@ -244,8 +267,8 @@ def main():
 	if args.load:
 		subLoad(conn, c)
 
-	if args.test:
-		seriesDownload(conn, c)		
+	if args.series:
+		seriesDownload(conn, c, args)		
 
 	c.close()
 	conn.close()

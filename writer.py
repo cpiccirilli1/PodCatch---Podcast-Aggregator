@@ -1,5 +1,8 @@
+#!/usr/bin/python3
 '''
 version 1.0.2
+
+A custom module made to ease the writing of data.
 '''
 
 import requests, sys
@@ -13,7 +16,7 @@ class Writer:
 		self.text = text
 
 	def fileWriter(self):
-		title = isstring(s)
+		title = isstring(self.title)
 		if (self.title == None) | (self.src == None):
 			print('This requires both a TITLE and SOURCE.')
 			return
@@ -40,7 +43,7 @@ class Writer:
 			return
 		else:	
 			with open(self.title, 'w') as fn:
-				fn.write('\n'+self.text)
+				fn.write(self.text+"\n")
 
 def isstring(s):
     # if we use Python 3

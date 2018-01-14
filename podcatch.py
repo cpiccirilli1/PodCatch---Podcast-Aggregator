@@ -171,7 +171,7 @@ def seriesDownload(connPass, curPass):
 
 	for en, row in enumerate(sdl.seriesDownload(series)):	
 		if str(en) in number:
-			if not os.path.isfile(row[3])	
+			if not os.path.isfile(row[3]):	
 				enscribe = ww(title=row[3], src=row[2])
 				enscribe.fileWriter()
 				
@@ -202,7 +202,7 @@ def recentEpsDL(connPass, curPass):
 
 	for en, row in enumerate(passThru.episodeRecent()):
 		if str(en) in number:
-			if not os.path.isfile(row[3])	
+			if not os.path.isfile(row[3]):	
 				enscribe = ww(title=row[3], src=row[2])
 				enscribe.fileWriter()
 				

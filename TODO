@@ -1,0 +1,10 @@
+TODO:
+
+long term:
+-Develope MTP transfer to device.
+-condense code to use more pythonic methods
+
+short term:
+-hammer out bugs with verification system
+-create tips page for using cli flags
+-figure out how to make callable from cli without specifying python.

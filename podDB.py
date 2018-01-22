@@ -37,9 +37,14 @@ class podData:
 
 
 	def episodeRecent(self):
-		self.curPass.execute('SELECT series, title, mp3url, mp3path, created, shortname downloaded FROM episode ORDER BY created DESC LIMIT 10')
+		self.curPass.execute('SELECT series, title, mp3url, mp3path, created, shortname, downloaded FROM episode ORDER BY created DESC LIMIT 10')
 		data = self.curPass.fetchall()
 		return data	
+
+	def episodeOwn(self):
+		self.curPass.execute('SELECT series, title, created, mp3path, shortname, downloaded FROM episode WHERE downloaded="yes" ORDER BY created DESC')
+		data = self.curPass.fetchall()
+		return data		
 
 	def seriesDownload(self, shortname):
 		self.curPass.execute('SELECT series, title, mp3url, mp3path, created, shortname downloaded FROM episode WHERE shortname=?  ORDER BY created', (shortname,))		

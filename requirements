@@ -1,9 +1,0 @@
-REQUIREMENTS:
-
-Modules:
-	Requests
-	SQLite3
-	feedparser
-	podDB - personal module
-	writer - personal module
-	

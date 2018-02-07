@@ -1,4 +1,4 @@
-#!/usr/bin/python3-
+#!/usr/bin/python3
 import os, argparse, sqlite3
 from sys import exit
 from pathlib import Path
@@ -16,13 +16,18 @@ def encl_Feed(request):
 	'''
 	Gets xml doc from rss source. Checks for enclosure tags.
 	Appends tuple to podList and returns. 
+	request: requested url from server
+	type: string
 	'''
+	
 	podList = []
 	ele = feedparser.parse(request)
 	#ele2=feedparser.parse(request, etag=ele.etag)
 	for e in ele.entries:
 		if e.enclosures:
-			podList.append((ele.feed.title, e.title, e.enclosures[0]['href'], e.published))						
+			podList.append((ele.feed.title, e.title, e.enclosures[0]['href'], e.published))
+		else:
+			pass							
 	return podList		
 
 def dataBasePopulate(connPass, curPass, args):
@@ -30,6 +35,12 @@ def dataBasePopulate(connPass, curPass, args):
 	Populates a database of episode (paths, titles, src, datepopulated, and others) from the subscriptions.
 	Creates download locations and the file path to the future episode.
 	Need to make a way to ask for default save location.
+	connPass: connection pass through
+	type: variable
+	curPass: cursor pass through
+	type: variable
+	args: args pass through
+	type: variable
 	'''
 	print('Updating Database... This may take a moment.')
 	home=str(Path.home())
@@ -47,10 +58,11 @@ def dataBasePopulate(connPass, curPass, args):
 					fullLocation = os.path.join(podPath, attrib[1]+'.mp3')
 					if not os.path.isfile(fullLocation): # checks whether file exists, sets dl to "No".
 						dl="No"
-						check = directoryCheck(podPath) #checks whether directory exists. 
+						check, message = directoryCheck(podPath) #checks whether directory exists. 
 						if not check:
-							print("Error occured while making directories")
-							exit()
+							print(message)
+						else:
+							print (message)	
 					else:
 						dl="yes"	
 
@@ -60,26 +72,33 @@ def dataBasePopulate(connPass, curPass, args):
 					epDB.episodeAdd()
 					if args.verbose:
 						print('[+] {0}: {1}'.format(attrib[1], attrib[2]))
+			else:
+				pass 			
 
 
 def directoryCheck(path):
 	'''
 	Checks to see if folder exists and if not
 	creates all necessary folders in path. 
+	path: path to check for existence of
+	type: string
 	'''
 
 	if not os.path.isdir(path):
 		try:	
 			os.makedirs(path)
-			return
+			return (True, "{0} was made.".format(path))
+		
 		except OSError as e:
-			return (False, 
-				'A Problem Occured.')	
-	return (True, 'No Error')	
+			return (False, 'Error Occured.')
+	else:				
+		return (False, 'False.')	
 
 def dateConvert(date):
 	'''
 	Converts date from original and returns fmt.
+	date: date object from datetime.datetime.now()
+	type: string
 	'''
 	original = dt.strptime(date, "%a, %d %b %Y %H:%M:%S %z")
 	fmt = dt.strftime(original, '%Y/%m/%d')
@@ -88,6 +107,12 @@ def dateConvert(date):
 def subscriptionUpdater (connPass, curPass, args):
 	'''
 	Manages podcast subscriptions.
+	connPass: connection pass through
+	type: variable
+	curPass: cursor pass through
+	type: variable
+	args: args pass through
+	type: variable	
 	'''
 
 	if args.feed: #makes the use of args.name mandatory. 
@@ -95,35 +120,47 @@ def subscriptionUpdater (connPass, curPass, args):
 			print('Please enter a name for subscribing to a new series.')
 			print('Usage: podcatch.py -f <"URL"> --name <"short name for series">')
 			exit()
+		else:
+			pass	
+	else:
+		pass
 
 	subsData = pod(date=datefmt, series=args.name, src=args.feed, curPass = curPass, connPass=connPass)
 	
 	if args.feed:
 		enscribe=ww(title='subs.txt', text=args.feed) #instantiates for txtWriter()
 		enscribe.txtWriter() #appends whatever rss urls to subs.txt
-		subsData.subsAdd() #needs feed already exists handling. :)
+		subsData.subsAdd() 
 		print ("Subscription added! Database will update...please wait just a moment.")
 		dataBasePopulate(connPass, curPass, args)
-		print('Would you like to view the episodes?')
+		print('Would you like to view or download the episodes?')
 		eps = input('y/n: ')
 		if eps.lower() == 'y':
 			print('Ok!')
 			
 			seriesDownload(connPass, curPass, args)
-				
+		else:
+			pass		
 	elif args.rfeed:
-		subsView(subsData)
 		if args.name == None:
 			subsView(subsData)
 			print('Please enter the name of the series to be removed.')
 			print('Usage: podcatch.py -r --name <"short name for series">')
 			exit()
 		else:
-			try:
-				subsData.subsDelete(args.name)
-				print('{} subscription deleted.'.format(args.name))
-			except:
-				print('Invalid name: {}'.format(args.name))	
+			print('Would you like to delete the episodes as well?')
+			eps_delete=input('Y/n')
+			if eps_delete.lower() == 'n' or 'no':
+				try:
+					subsData.subsDelete(args.name)
+					print('{} subscription deleted.'.format(args.name))
+				except:
+					print('Invalid name or subscription doesn\'t exist: {}'.format(args.name))	
+			elif eps_delete.lower() == 'y' or 'yes':
+					removeSeries(connPass, curPass, args)
+			else:
+				print('You have entered an invalid answer. Goodbye.')
+				exit()		
 	elif args.view:
 		subsView(subsData)
 	else:
@@ -132,14 +169,19 @@ def subscriptionUpdater (connPass, curPass, args):
 def subsView(subsData):
 	'''
 	Displays current subscriptions.
+	subsData: instantiation pass through
 	'''
 	for line in subsData.subsRead():
-		print('[+] {0} added at {1}'.format(line[1], line[0]))
-		print(line)
+		print('[+] {0} added on {1}'.format(line[1], line[0]))
+
 
 def subLoad(connPass, curPass):
 	"""
 	Updates subscriptions based on a text file list of url sources. 
+	connPass: connection pass through
+	type: variable
+	curPass: cursor pass through
+	type: variable	
 	"""
 
 	with open('subs.txt', 'r') as subs:
@@ -149,6 +191,8 @@ def subLoad(connPass, curPass):
 			if name == "":
 				print('[-] That is an unacceptable name.')
 				break
+			else:
+				pass	
 			line2 = line.strip()
 			subsData = pod(date=datefmt, series=name, src=line2, curPass = curPass, connPass=connPass)
 			subsData.subsAdd()
@@ -160,8 +204,12 @@ def seriesDownload(connPass, curPass, args):
 	'''
 	Lists subscriptions, then episodes related to subscription numbered, finally
 	passes to writer module and uses requests to download file.
-
-	create way to update downloaded collumn in database. Check if functioning.
+	connPass: connection pass through
+	type: variable
+	curPass: cursor pass through
+	type: variable
+	args: args pass through
+	type: variable
 	'''
 
 	sdl = pod(connPass=connPass, curPass=curPass)
@@ -189,6 +237,8 @@ def seriesDownload(connPass, curPass, args):
 	if not verify:
 		print("Entry is not a number.")
 		exit()
+	else:
+		pass	
 
 	for en, row in enumerate(sdl.seriesDownload(series)):	
 		if str(en) in number:
@@ -203,7 +253,8 @@ def seriesDownload(connPass, curPass, args):
 					print('Error:\n{}'.format(str(e)))		
 			else:
 				print('\n[-] {0}: {1} already exists at path {2}.'.format(row[0], row[1], row[3]))
-
+		else:
+			pass		
 
 def recentEpsDL(connPass, curPass):
 	'''
@@ -235,7 +286,8 @@ def recentEpsDL(connPass, curPass):
 
 			else:
 				print('\n[-] {0}: {1} already exists at path {2}.'.format(row[0], row[1], row[3]))	
-
+		else:
+			pass		
 
 def verify(numlist):
 
@@ -257,6 +309,8 @@ def intCheckInput():
 	if number=='':
 		print('Entry is not valid.')
 		exit()
+	else:
+		pass	
 
 	verify(number)
 
@@ -278,7 +332,6 @@ def deleteTrack(connPass, curPass):
 
 	for en, row in enumerate(track.episodeOwn()):
 		if str(en) in number:
-			print (row)
 			
 			if os.path.isfile(row[3]):
 				print('\n[-] {0}: {1} has been removed.'.format(row[0], row[1]))
@@ -291,14 +344,16 @@ def deleteTrack(connPass, curPass):
 			else:
 				print('''\n[-] {0}: {1} does not exist at the indicated PATH.
 			Was it moved or deleted by user or administrator?'''.format(row[0], row[1]))		
-			
+		
+		else:
+			pass	
 
 def currentPodcasts(connPass, curPass):
 	current=pod(connPass=connPass, curPass=curPass)
-	
+	print('These are your current tracks.')
 	for en, row in enumerate(current.episodeOwn()):
 		print('''[{0}]{1}
-			{2} {3}'''.format(str(en), row[0], row[1], row[2]))
+		{2} {3}'''.format(str(en), row[0], row[1], row[2]))
 
 def trackCheck(connPass, curPass):
 	track = pod(connPass=connPass, curPass=curPass)
@@ -310,7 +365,15 @@ def trackCheck(connPass, curPass):
 
 
 def removeSeries(connPass, curPass, args):
-
+	'''
+	removes an entire series mp3 tracks and database entries.
+	connPass: connection pass through
+	type: variable
+	curPass: cursor pass through
+	type: variable
+	args: args pass through
+	type: variable
+	'''
 	if not args.name:
 		subsData=pod(connPass=connPass, curPass=curPass)
 		subsView(subsData)
@@ -330,20 +393,37 @@ def removeSeries(connPass, curPass, args):
 
 		for row in seriesList.episodeOwn():
 			try:
-				if os.path.isfile(row[3]): os.unlink(row[3])
+				if os.path.isfile(row[3]): 
+					os.unlink(row[3])
+				else:
+					pass	
 			except:
 				print('Something Went Wrong!')	
 
 		seriesList.seriesDelete()
 		seriesList.subsDelete(args.name)
 
-def sftpClient(host, port, username, passw=None, keypath=None, keypass=None):
+def sftpClient(host, port=22, username='user', passw=None, keypath=None, keypass=None):
 	'''
 	sftpClient is vehicle for sftp transfer of podcast files.
+	host: Host address of ssh server
+	type: string
+	port: port number where a connection is to be made. default is 22
+	type: interger
+	username: user name of the account to connect to. Default is 'user'
+	type: string
+	passw: password for only password verification ssh servers. (insecure)
+	type: string
+	keypath: name of private key file. It is connected to the dir /home/<user>/.ssh 
+	type: string
+	keypass: password for private key
+	type: string
 	'''
 	try:
 		if keypath!=None:
 			key=paramiko.RSAKey.from_private_key_file(keypath, password=keypass)
+		else:
+			pass
 		ssh = paramiko.SSHClient()
 		ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 		ssh.connect(host, port, username, passw, key)
@@ -351,18 +431,31 @@ def sftpClient(host, port, username, passw=None, keypath=None, keypass=None):
 		sftp = ssh.open_sftp()
 		sftp.sshclient = ssh
 		return sftp
+	
+
 	except Exception as e:
 		print('An error occurred creating SFTP client: {0}: {1}'.format(e.__class__, e))	
 		if sftp is not None:
 			sftp.close()
+		else:
+			pass	
 		if ssh is not None:
 			ssh.close()
+		else:
+			pass	
+		
 		pass		
 
 def trackSend(connPass, curPass, args):
 	'''
 	Takes a track and sends it over sftp to your android device.
 	Saves it in /sdcard/Music/podcast/<shortname folder>
+	connPass: connection pass through
+	type: variable
+	curPass: cursor pass through
+	type: variable
+	args: args pass through
+	type: variable
 	'''
 	print('''We are going to connect to your phone
 	via ssh/sftp. Are we ready?''')
@@ -420,81 +513,104 @@ def trackSend(connPass, curPass, args):
 			sftp_client.chdir(pod_folder)			
 
 def trackRemove(connPass, curPass, args):
+	'''
+	Will look at tracks on phone using subscription database as indicator. 
+	Removes tracks specified by user.
+	connPass: connection pass through
+	type: variable
+	curPass: cursor pass through
+	type: variable
+	args: args pass through
+	type: variable
+	'''
+
 	print('''We are going to connect to your phone
 	via ssh/sftp. Are we ready?''')
 	
-	confirm = input('Y/n: ')
+	confirm = input('Y/n: ') #Verifying desire to connect.
 	if confirm.lower() != "y" or 'yes':
 		exit("Goodbye")
+	else:
+		pass
 	
-	if (args.port == None) and (args.host == None):
+	if (args.port == None) and (args.host == None): #exits if these two flags are absent
 		print('Some nessary details were omitted.')
 		print('usage: python3 podcatch.py --trackrem --host "host" --port portnum --user "user" -k "keyname (e.g. id_rsa)"')
 		exit('Bye')	
 	else:	
-		username, host, port = args.user, args.host, args.port
+		username, host, port = args.user, args.host, args.port #assigns variables.
 
 		if not args.pkey:	
 			print('What\'s the password? Hit enter for private key entry.' )	
-			password = input('Password: ')
+			password = input('Password: ') #password for a password only ssh system
 			print('What\'s the key password? Hit enter if password entry.')
-			keypass=input('Keypass: ')		
+			keypass=input('Keypass: ')	#asks for private key password if any.	
 		else:
-			password, keypass = '', args.pkey
+			password, keypass = '', args.pkey #assigns variables for private key pass 
 
-		key=os.path.join(str(Path.home()), '.ssh', args.key)
-		sftp_client = sftpClient(args.host, args.port, args.user, password, key, keypass)
-		podcast = '/sdcard/Music'
-		sftp_client.chdir(podcast)
-		sdDir=sftp_client.listdir(podcast)
-		pod_folder= os.path.join(podcast, 'podcasts')
-		if 'podcasts' not in sdDir:
-			print('You currently don\'t have podcasts in the default dir.')
-			exit('Goodbye') 	
+	key=os.path.join(str(Path.home()), '.ssh', args.key) #connects private key path to 
+	sftp_client = sftpClient(args.host, args.port, args.user, password, key, keypass) #sets up client
+	podcast = '/sdcard/Music' 
+	sftp_client.chdir(podcast) #changes to dir above
+	sdDir=sftp_client.listdir(podcast) #gets a list of dir in the Music dir
+	pod_folder= os.path.join(podcast, 'podcasts')
+	if 'podcasts' not in sdDir: #checks if podcasts dir in music
+		print('You currently don\'t have podcasts in the default dir.')
+		exit('Goodbye') 	
+	else:
+		pass
 
-		subs = pod(connPass=connPass, curPass=curPass)	
+	subs = pod(connPass=connPass, curPass=curPass) #instantiates db class.	
+	
+	for en, row in enumerate(subs.subsRead()): #subs data used to select folder.
+		print('[{0}] {1}'. format(str(en), row[1]))
+	print('From which series would you like to remove episodes?') 
+	print('Please separate selections with spaces')	
+	number= intCheckInput() #takes number as input and verifies they are all integers
+	
+	for en, row in enumerate(subs.subsRead()): #subs data used to select folder and get file listings within each
+		folder = os.path.join(pod_folder, row[1])
+		if str(en) in number:
+			
+			if sftp_client.getcwd() != folder: #verifies cwd is same as folder variable
+				sftp_client.chdir(folder) 		#switches to if not.
+			else:
+				pass	
+			fileList = sftp_client.listdir(folder) #gets file listing for specific folder.
+		else:
+			pass
+
+		for enum, f in enumerate(fileList): #creates a rough number system to list: folder and track.
+			print("[{0}-{1}] {2}".format(str(en), str(enum), f))
+			sftp_client.chdir(pod_folder)
+
+	print('Which episodes would you like to remove?')
+	print('Please use the n-n with a space between (e.g. 1-1 2-2 3-3)')		
+	n0 = input("> ")
+	n1=n0.split(" ")
+	n2 = [n.split('-') for n in n1]  #should be [[1,1],[2,2]] etc.
 		
-		for en, row in enumerate(subs.subsRead()):
-			print('[{0}] {1}'. format(str(en), row[1]))
-		print('From which series would you like to remove episodes?')
-		print('Please separate selections with spaces')	
-		number= intCheckInput()
-		
-		for en, row in enumerate(subs.subsRead()):
-			folder = os.path.join(pod_folder, row[1])
-			if en in number:
+	for n in n2: #similar verification to intCheckInput
+		verify(n)
+		if not verify:
+			exit()
+		else:
+			pass	
+
+	for en, row in enumerate(subs.subsRead()): #accesses folders via subs data
+		folder = os.path.join(pod_folder, row[1])#creates folder
+		for n in n2:	#iterates through list of lists.
+			if str(en) == n[0]: #indicates folder
 				if sftp_client.getcwd() != folder:
 					sftp_client.chdir(folder)
-
-				fileList = sftp_client.listdir(folder)
-			
-			for enum, f in enumerate(fileList):
-				print("[{0}-{1}] {2}".format(str(en), str(enum), f))
-				sftp_client.chdir(pod_folder)
-
-		print('Which episodes would you like to remove?')
-		print('Please use the n-n with a space between (e.g. 1-1 2-2 3-3)')		
-		n0 = input("> ")
-		n1=n0.split(" ")
-		n2 = [n.split('-') for n in n1]  #should be [[1,1],[2,2]] etc.
-			
-		for n in n2:
-			verify(n)
-			if not verify:
-				exit()
-
-		for en, row in enumerate(subs.subsRead()):
-			folder = os.path.join(pod_folder, row[1])
-			for n in n2:	
-				if en == n[0]:
-					if sftp_client.getcwd() != folder:
-						sftp_client.chdir(folder)
-					
-					fileList=sftp_client.listdir(folder)
-					sftp_client.remove(fileList[n[1]])
-
-		sftp_client.close()
-		
+				else:
+					pass
+				fileList=sftp_client.listdir(folder)
+				sftp_client.remove(fileList[n[1]]) #indicates index of file to remove.
+			else:
+				pass		
+	sftp_client.close()
+	
 
 def main():
 	parser = argparse.ArgumentParser()
@@ -512,13 +628,13 @@ def main():
 	parser.add_argument('--current', dest='current', action='store_true', help='Shows which files you currently have downloaded.')
 	parser.add_argument('--check', dest='check', action='store_true', help='Resolves whether or not files are in database.')
 	parser.add_argument('--remove', dest='remove', action='store_true', help='Removes complete series from hard drive and database. Use with caution. Must be used with --name.')
-	parser.add_argument('--send', dest='send', action='store_true', help='Sends track to an ssh enabled device.')
+	parser.add_argument('--tracksend', dest='send', action='store_true', help='Sends track to an ssh enabled device.')
 	parser.add_argument('--host', dest='host', help='Host name for ssh server. Required with --ssh flag.')
 	parser.add_argument('--port', dest='port', help='Port number for ssh server. Default is 22 if undeclared.', default=22)
 	parser.add_argument('--user', dest='user', help='Username for ssh server. Default is user if undeclared.', default='user')
 	parser.add_argument('--pkey', dest="pkey", help='Password for key encryption. If undeclared, it will be asked before connection.')
 	parser.add_argument('-k', dest='key', default=None, help='Name of private key for passwordless access. Must be located in the .ssh dir of the home folder.')
-	parser.add_argument('--rem', dest='rem', help='Removes user specified tracks from ssh android device.')
+	parser.add_argument('--trackrem', dest='rem', help='Removes user specified tracks from ssh android device.')
 	args = parser.parse_args()
 
 	
@@ -544,23 +660,21 @@ def main():
 				rec = input("Y/n")
 				if rec.lower() == 'y':
 					recentEpsDL(conn, c)
+				else:
+					exit()
 			elif args.recent: 
 				recentEpsDL(conn, c)
 			elif args.series: 
 				seriesDownload(conn, c, args)			
 
 		if args.load: subLoad(conn, c)
-
 		if args.delete: deleteTrack(conn, c)			
-
 		if args.current: currentPodcasts(conn, c)
-		
 		if args.check: trackCheck(conn, c)
-
 		if args.remove: removeSeries(conn, c, args)
-		
 		if args.send: trackSend(conn, c, args)
-
+		if args.rem: trackRemove(conn, c, args)
+		
 		c.close()
 		conn.close()
 	else:

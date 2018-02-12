@@ -1,9 +1,14 @@
 #!/usr/bin/python3
+'''
+version 0.9.1
+MIT License
+'''
+
 import os, argparse, sqlite3
 from sys import exit
 from pathlib import Path
 from datetime import datetime as dt
-
+import platform
 import paramiko
 import feedparser
 
@@ -12,23 +17,41 @@ from podDB import podData as pod #personal module, use if you find useful
 
 datefmt = dt.strftime(dt.now(), '%Y/%m/%d %I:%M %p')
 
+def title_info(request):
+	pod_info = []
+	try:
+		element = feedparser.parse(request) #instantiates feedparser object
+		pod_info.append(element.feed.title, element.feed.description, element.feed.link) #appends info for db table use later
+		return pod_info
+	except AttributeError as e:
+		print('The following error occured. Usually due to an inability to access the network.')
+
 def encl_Feed(request):
 	'''
 	Gets xml doc from rss source. Checks for enclosure tags.
 	Appends tuple to podList and returns. 
 	request: requested url from server
 	type: string
+	rtype: list
 	'''
 	
 	podList = []
 	ele = feedparser.parse(request)
-	#ele2=feedparser.parse(request, etag=ele.etag)
+	'''
+	ele2=feedparser.parse(request, etag=ele.etag) #checks server message to see if new updates.
+	ele3=feedparser.parse(request, modified=ele.mod) #another method of doing so.
+
+	if (ele2.status == 304):
+		podList.append(ele2.debug_message)
+	elif (ele3.status == 304):
+		podList.append(ele3.debug_message)
+	'''
+		
 	for e in ele.entries:
 		if e.enclosures:
-			podList.append((ele.feed.title, e.title, e.enclosures[0]['href'], e.published))
-		else:
-			pass							
-	return podList		
+			podList.append((ele.feed.title, e.title, e.enclosures[0]['href'], e.published, e.description))
+							
+	return podList
 
 def dataBasePopulate(connPass, curPass, args):
 	'''
@@ -41,6 +64,7 @@ def dataBasePopulate(connPass, curPass, args):
 	type: variable
 	args: args pass through
 	type: variable
+	rtype: None
 	'''
 	print('Updating Database... This may take a moment.')
 	home=str(Path.home())
@@ -52,26 +76,22 @@ def dataBasePopulate(connPass, curPass, args):
 		for i in line:
 			if i.startswith('http'):
 				l = encl_Feed(i)
-	
+
 				for attrib in l: #divides for episodeAdd()
 					podPath = os.path.join(pathHome, attrib[0])
 					fullLocation = os.path.join(podPath, attrib[1]+'.mp3')
 					if not os.path.isfile(fullLocation): # checks whether file exists, sets dl to "No".
 						dl="No"
-						check, message = directoryCheck(podPath) #checks whether directory exists. 
-						if not check:
-							print(message)
-						else:
-							print (message)	
+						check, message = directoryCheck(podPath) #checks whether directory exists. 						
 					else:
 						dl="yes"	
 
 
-					epDB = pod(downloaded=dl, shortname=line[1] ,published=dateConvert(attrib[3]), date=datefmt ,connPass=connPass, curPass=curPass, src=attrib[2], series=attrib[0], title=attrib[1], hdpath=fullLocation)
+					epDB = pod(desc=attrib[4], downloaded=dl, shortname=line[1] ,published=dateConvert(attrib[3]), date=datefmt ,connPass=connPass, curPass=curPass, src=attrib[2], series=attrib[0], title=attrib[1], hdpath=fullLocation)
 					epDB.episodeTable()
 					epDB.episodeAdd()
-					if args.verbose:
-						print('[+] {0}: {1}'.format(attrib[1], attrib[2]))
+					if args.verbose: print('[+] {0}: {1}'.format(attrib[1], attrib[2]))
+				
 			else:
 				pass 			
 
@@ -123,14 +143,14 @@ def subscriptionUpdater (connPass, curPass, args):
 		else:
 			pass	
 	else:
-		pass
-
-	subsData = pod(date=datefmt, series=args.name, src=args.feed, curPass = curPass, connPass=connPass)
+		subsData = pod(date=datefmt, series=args.name, src=args.feed, curPass = curPass, connPass=connPass)
 	
 	if args.feed:
-		enscribe=ww(title='subs.txt', text=args.feed) #instantiates for txtWriter()
-		enscribe.txtWriter() #appends whatever rss urls to subs.txt
-		subsData.subsAdd() 
+		info =title_info(args.feed)
+		subs_info = pod(title=info[0], desc=info[1], date=datefmt, series=args.name, src=args.feed, curPass = curPass, connPass=connPass)
+		enscribe=ww(title='subs.txt', text=args.feed+'\n') #instantiates for txtWriter()
+		enscribe.txtWriter(mode='a') #appends whatever rss urls to subs.txt
+		subs_info.subsAdd() 
 		print ("Subscription added! Database will update...please wait just a moment.")
 		dataBasePopulate(connPass, curPass, args)
 		print('Would you like to view or download the episodes?')
@@ -140,7 +160,8 @@ def subscriptionUpdater (connPass, curPass, args):
 			
 			seriesDownload(connPass, curPass, args)
 		else:
-			pass		
+			pass
+
 	elif args.rfeed:
 		if args.name == None:
 			subsView(subsData)
@@ -162,17 +183,23 @@ def subscriptionUpdater (connPass, curPass, args):
 				print('You have entered an invalid answer. Goodbye.')
 				exit()		
 	elif args.view:
-		subsView(subsData)
+		subsView(subsData, args)
 	else:
 		pass		
 
-def subsView(subsData):
+def subsView(subsData, args):
 	'''
 	Displays current subscriptions.
 	subsData: instantiation pass through
 	'''
 	for line in subsData.subsRead():
-		print('[+] {0} added on {1}'.format(line[1], line[0]))
+		if args.verbose:
+			print('''
+[+] {0}: {1} 
+{2}	'''.format(line[1], line[2], line[4])
+				)
+		else:	
+			print('[+] {0} added on {1}'.format(line[1], line[0]))
 
 
 def subLoad(connPass, curPass):
@@ -186,18 +213,20 @@ def subLoad(connPass, curPass):
 
 	with open('subs.txt', 'r') as subs:
 		for line in subs:
-			print(line)
-			name = input('[+] Give me a shortname for the above feed: ')
-			if name == "":
-				print('[-] That is an unacceptable name.')
-				break
+			if line != '\n':
+				print(line)
+				name = input('[+] Give me a shortname for the above feed: ')
+				if name == "":
+					print('[-] That is an unacceptable name.')
+					break
+				else:						
+					line2 = line.strip()
+					info = title_info(line2)
+					subsData = pod(date=datefmt, title=info[0], desc=info[1],  series=name, src=line2, curPass = curPass, connPass=connPass)
+					subsData.subsAdd()
+					print ("[+] {0} has been added.".format(name))
 			else:
-				pass	
-			line2 = line.strip()
-			subsData = pod(date=datefmt, series=name, src=line2, curPass = curPass, connPass=connPass)
-			subsData.subsAdd()
-			print ("[+] {0} has been added.".format(name))
-
+				print("Empty line. :(")		
 
 
 def seriesDownload(connPass, curPass, args):
@@ -215,10 +244,9 @@ def seriesDownload(connPass, curPass, args):
 	sdl = pod(connPass=connPass, curPass=curPass)
 	
 	if args.name:
-		series = args.name
-		seriesFunc = sdl.seriesDownload(series)
+		seriesFunc = sdl.seriesDownload(args.name)
 	else:
-		subsView(sdl)
+		subsView(sdl, args)
 		series=input("What series would you like to download from?: ")
 		seriesFunc = sdl.seriesDownload(series)	
 	
@@ -249,24 +277,35 @@ def seriesDownload(connPass, curPass, args):
 					enscribe.fileWriter()
 					sdl.episodeUpdate("yes", row[1])
 					print('[+] Success!')
-				except Exception as e:
+				except ConnectionError as e:
 					print('Error:\n{}'.format(str(e)))		
 			else:
 				print('\n[-] {0}: {1} already exists at path {2}.'.format(row[0], row[1], row[3]))
 		else:
 			pass		
 
-def recentEpsDL(connPass, curPass):
+def recentEpsDL(connPass, curPass, args):
 	'''
-	Displays last 10 episodes to be entered into database.
-
+	Displays last 10 episodes to be entered into database that are currently not in your possession.
 	Create way to update downloaded collumn in database. check if functioning.
 	'''
 	passThru = pod(connPass=connPass, curPass=curPass)
 	for en, row in enumerate(passThru.episodeRecent()):
-		print ('''[{0}] {1}
-	{2} {3}\n'''.format(str(en), row[0], row[1], row[4]))
+		if row not in passThru.episodeOwn():
 
+			if args.verbose:
+				print(
+'''[{0}] {1}
+{2} {3}
+{4}\n
+'''.format(str(en), row[0], row[1], row[4], row[7])
+				)
+			else:	
+				print (
+'''[{0}] {1}
+{2} {3}\n'''.format(str(en), row[0], row[1], row[4]))
+		else:
+			pass		
 	print('Which number(s) would you like to download (without brackets)? Separate with spaces:')	
 	print('Press ctrl+c to exit.')
 	number = intCheckInput()
@@ -281,8 +320,9 @@ def recentEpsDL(connPass, curPass):
 					enscribe.fileWriter()
 					passThru.episodeUpdate("yes", row[1])
 					print('[+] Success!')
-				except Exception as e:
-					print('Error:\n{}'.format(str(e)))
+				except ConnectionError as e:
+					print('Error:\n{0}, {1}'.format(str(e.__class__),str(e)))
+					exit()
 
 			else:
 				print('\n[-] {0}: {1} already exists at path {2}.'.format(row[0], row[1], row[3]))	
@@ -337,9 +377,10 @@ def deleteTrack(connPass, curPass):
 				print('\n[-] {0}: {1} has been removed.'.format(row[0], row[1]))
 				try:
 					os.unlink(row[3])
+					track.episodeUpdate('No', row[1])
 				except:
 					print('An error Occured')	
-				track.episodeUpdate('No', row[1])
+				
 				print('Done!')
 			else:
 				print('''\n[-] {0}: {1} does not exist at the indicated PATH.
@@ -418,6 +459,7 @@ def sftpClient(host, port=22, username='user', passw=None, keypath=None, keypass
 	type: string
 	keypass: password for private key
 	type: string
+	rtype: sftp object
 	'''
 	try:
 		if keypath!=None:
@@ -572,10 +614,8 @@ def trackRemove(connPass, curPass, args):
 		folder = os.path.join(pod_folder, row[1])
 		if str(en) in number:
 			
-			if sftp_client.getcwd() != folder: #verifies cwd is same as folder variable
-				sftp_client.chdir(folder) 		#switches to if not.
-			else:
-				pass	
+			if sftp_client.getcwd() != folder: sftp_client.chdir(folder) #switches to folder dir.
+	
 			fileList = sftp_client.listdir(folder) #gets file listing for specific folder.
 		else:
 			pass
@@ -592,19 +632,14 @@ def trackRemove(connPass, curPass, args):
 		
 	for n in n2: #similar verification to intCheckInput
 		verify(n)
-		if not verify:
-			exit()
-		else:
-			pass	
+		if not verify: exit()	
 
 	for en, row in enumerate(subs.subsRead()): #accesses folders via subs data
 		folder = os.path.join(pod_folder, row[1])#creates folder
 		for n in n2:	#iterates through list of lists.
 			if str(en) == n[0]: #indicates folder
-				if sftp_client.getcwd() != folder:
-					sftp_client.chdir(folder)
-				else:
-					pass
+				if sftp_client.getcwd() != folder: sftp_client.chdir(folder)
+
 				fileList=sftp_client.listdir(folder)
 				sftp_client.remove(fileList[n[1]]) #indicates index of file to remove.
 			else:
@@ -612,76 +647,113 @@ def trackRemove(connPass, curPass, args):
 	sftp_client.close()
 	
 
+def first_run():
+	dbfile = os.path.join(str(Path.home()),'.dbpath')
+	
+	if platform.os.name == 'posix':
+		
+		if os.path.isfile('podcatch.py') and not os.path.isfile(dbfile): 
+			db = os.path.join(os.getcwd(), 'podbase.db')
+			with open(dbfile, 'w') as dbpath:
+				dbpath.write(db)
+			
+			if platform.system() == "Linux":
+				bash_aliases = os.path.join(str(Path.home()),'.bash_aliases')
+			else:
+				bash_aliases= os.path.join(str(Path.home()), '.bash_profile')			
+
+			if os.path.isfile(bash_aliases):	
+				dbpod = ww(title=bash_aliases, text='alias pod="python3 {}/podcatch.py"'.format(os.getcwd()))
+				dbpod.txtWriter(mode='a')
+				exit()			
+			else:
+				dbpod = ww(title=bash_aliases, text='alias pod="python3 {}/podcatch.py"'.format(os.getcwd()))
+				dbpod.txtWriter(mode='w+')
+				exit()	
+
+		else:
+			with open(dbfile, 'r') as dbpath:
+				for line in dbpath:
+					database = line				
+			return database
+	else:
+		print('You are not on a posix system.')
+		exit()		
+
+def database_conn_cur(path):
+	conn = sqlite3.connect(path)
+	c = conn.cursor()
+	tables=pod(connPass=conn, curPass=c)
+	tables.subsTable()
+	tables.episodeTable()
+	trackCheck(conn, c)
+	return conn, c
+
 def main():
 	parser = argparse.ArgumentParser()
-	parser.add_argument('-f', dest='feed', help="Adds a new feed to the subscription list. Must be used with --name. -q is optional use. ")
+	parser.add_argument('-f', dest='feed', help="Adds a new feed to the subscription list. Must be used with --name. -v is optional use. ")
 	parser.add_argument('--name', dest='name', help='Identifies feed subscription by name you gave when subscribing. Names must be in quotation marks.')
 	parser.add_argument('-r', dest='rfeed', help='Removes a feed from the subscription list. Must be in quotation marks.', action="store_true")
-	parser.add_argument('--update', dest ='update', help='Checks for new updates. Can be used with -q', action='store_true')
+	parser.add_argument('--update', dest ='update', help='Checks for new updates. Can be used with -v', action='store_true')
 	parser.add_argument('--view', dest='view', help='Displays current subscriptions.', action='store_true')
-	parser.add_argument('-q', dest="verbose", action="store_true", help="Displays more information about what the database is doing.")
+	parser.add_argument('-v', dest="verbose", action="store_true", help="Displays more information about what the database is doing.")
 	parser.add_argument('--recent', dest='recent', help='Gets the most recent episode.', action='store_true')
 	parser.add_argument('--load', dest='load', action='store_true', help='Loads urls of feeds into database from subs.txt file.')
 	parser.add_argument('--series', dest='series', action='store_true', help='Displays all episodes of the series. Can be used with --name.')
-	parser.add_argument('--tips', dest='tips', action='store_true', help='tips for podcatch use')
 	parser.add_argument('--delete', dest='delete', action='store_true', help='Remove files from podcast collection.')
 	parser.add_argument('--current', dest='current', action='store_true', help='Shows which files you currently have downloaded.')
-	parser.add_argument('--check', dest='check', action='store_true', help='Resolves whether or not files are in database.')
 	parser.add_argument('--remove', dest='remove', action='store_true', help='Removes complete series from hard drive and database. Use with caution. Must be used with --name.')
-	parser.add_argument('--tracksend', dest='send', action='store_true', help='Sends track to an ssh enabled device.')
+	parser.add_argument('--sshsend', dest='send', action='store_true', help='Sends track to an ssh enabled device.')
 	parser.add_argument('--host', dest='host', help='Host name for ssh server. Required with --ssh flag.')
 	parser.add_argument('--port', dest='port', help='Port number for ssh server. Default is 22 if undeclared.', default=22)
 	parser.add_argument('--user', dest='user', help='Username for ssh server. Default is user if undeclared.', default='user')
 	parser.add_argument('--pkey', dest="pkey", help='Password for key encryption. If undeclared, it will be asked before connection.')
 	parser.add_argument('-k', dest='key', default=None, help='Name of private key for passwordless access. Must be located in the .ssh dir of the home folder.')
-	parser.add_argument('--trackrem', dest='rem', help='Removes user specified tracks from ssh android device.')
+	parser.add_argument('--sshrem', dest='rem', help='Removes user specified tracks from ssh android device.')
+	parser.add_argument('--version', dest='version', help='Gives current version.', action='store_true')
 	args = parser.parse_args()
-
 	
-	if os.path.isfile('podcatch.py'):
-		conn = sqlite3.connect('podbase.db')
-		c = conn.cursor()
-		tables=pod(connPass=conn, curPass=c)
-		tables.subsTable()
-		tables.episodeTable()
-		trackCheck(conn, c)
+	database = first_run()
+	conn, c = database_conn_cur(database)
+	version = 'version: 0.9.1'
+	
+	if args.feed or args.rfeed or args.view:
+		subscriptionUpdater(conn, c, args)
 
-		if args.feed or args.rfeed or args.view:
-			subscriptionUpdater(conn, c, args)
+	if args.update or args.recent or args.series:
+		try:
+			dataBasePopulate(conn, c, args)
+		except Exception as e:
+			print("Err: {0}: {1}".format(e.__class__, str(e)))
 
-		if args.update or args.recent or args.series:
-			try:
-				dataBasePopulate(conn, c, args)
-			except Exception as e:
-				print("Err: {0}: {1}".format(e.__class__, str(e)))
+		if args.update:
+			print("Would you like to see recent episodes?")
+			rec = input("Y/n")
+			if rec.lower() == 'y':
+				recentEpsDL(conn, c, args)
+			else:
+				exit()
+		elif args.recent: 
+			recentEpsDL(conn, c, args)
+		elif args.series: 
+			seriesDownload(conn, c, args)			
 
-			if args.update:
-				print("Would you like to see recent episodes?")
-				rec = input("Y/n")
-				if rec.lower() == 'y':
-					recentEpsDL(conn, c)
-				else:
-					exit()
-			elif args.recent: 
-				recentEpsDL(conn, c)
-			elif args.series: 
-				seriesDownload(conn, c, args)			
-
-		if args.load: subLoad(conn, c)
-		if args.delete: deleteTrack(conn, c)			
-		if args.current: currentPodcasts(conn, c)
-		if args.check: trackCheck(conn, c)
-		if args.remove: removeSeries(conn, c, args)
-		if args.send: trackSend(conn, c, args)
-		if args.rem: trackRemove(conn, c, args)
-		
-		c.close()
-		conn.close()
+	if args.load: subLoad(conn, c)
+	if args.delete: deleteTrack(conn, c)			
+	if args.current: currentPodcasts(conn, c)
+	if args.remove: removeSeries(conn, c, args)
+	if args.send: trackSend(conn, c, args)
+	if args.rem: trackRemove(conn, c, args)
+	
+	if args.version and platform.os.name == 'posix': 
+		print(version)
+		exit()
 	else:
-		print('''
-	The database is not in the current directory.
-	Please move to the same directory for proper program function.''')
-	
+		pass
+
+	c.close()
+	conn.close()
+
 if __name__ == "__main__":
 	main()
 		

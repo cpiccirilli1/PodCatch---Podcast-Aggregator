@@ -1,10 +1,18 @@
 TODO:
 
-long term:
--Develope MTP transfer to device.
--condense code to use more pythonic methods
-
 short term:
--hammer out bugs with verification system
--create tips page for using cli flags
--figure out how to make callable from cli without specifying python.
+	*Work on ssh add and remove functions
+	*Work on bluetooth transfering
+	*Error handling for no internet connection.
+	*Be awesome.
+
+long term:
+	*add curses player. 
+		-research curses and modules for music
+	*look into mutagen module for id3tags. 
+	*Make functions a little more consistent.
+		-instantiation variables need to be consistent.
+		-add comments for key pieces of program.
+	*Add bluetooth transfering.	
+	*Iphone compatability?
+	*MTP transfers?

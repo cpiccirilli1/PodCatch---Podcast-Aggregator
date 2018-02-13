@@ -162,7 +162,7 @@ def dataBasePopulate(connPass, curPass, args):
 	type: variable
 	args: args pass through
 	type: variable
-0	rtype: None
+	rtype: None
 	'''
 	print('Updating Database... This may take a moment.')
 	home=str(Path.home())
@@ -259,8 +259,8 @@ def subscriptionUpdater (connPass, curPass, args):
 		subsData = pod(date=datefmt, series=args.name, src=args.feed, curPass = curPass, connPass=connPass)
 	
 	if args.feed:
-		info = pod_parse.title_info(args.feed)
-		subs_info = pod(title=info[0], desc=info[1], date=datefmt, series=args.name, src=args.feed, curPass = curPass, connPass=connPass)
+		info = pod_parse(args.feed)
+		subs_info = pod(title=info.title_info[0], desc=info.title_info[1], date=datefmt, series=args.name, src=args.feed, curPass = curPass, connPass=connPass)
 		enscribe=ww(title='subs.txt', text=args.feed+'\n') #instantiates for txtWriter()
 		enscribe.txtWriter(mode='a') #appends whatever rss urls to subs.txt
 		subs_info.subsAdd() 

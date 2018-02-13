@@ -17,41 +17,139 @@ from podDB import podData as pod #personal module, use if you find useful
 
 datefmt = dt.strftime(dt.now(), '%Y/%m/%d %I:%M %p')
 
-def title_info(request):
-	pod_info = []
-	try:
-		element = feedparser.parse(request) #instantiates feedparser object
-		pod_info.append(element.feed.title, element.feed.description, element.feed.link) #appends info for db table use later
-		return pod_info
-	except AttributeError as e:
-		print('The following error occured. Usually due to an inability to access the network.')
+class pod_parse:
 
-def encl_Feed(request):
-	'''
-	Gets xml doc from rss source. Checks for enclosure tags.
-	Appends tuple to podList and returns. 
-	request: requested url from server
-	type: string
-	rtype: list
-	'''
-	
-	podList = []
-	ele = feedparser.parse(request)
-	'''
-	ele2=feedparser.parse(request, etag=ele.etag) #checks server message to see if new updates.
-	ele3=feedparser.parse(request, modified=ele.mod) #another method of doing so.
+	def __init__(self, request=None):
+		self.request = request
 
-	if (ele2.status == 304):
-		podList.append(ele2.debug_message)
-	elif (ele3.status == 304):
-		podList.append(ele3.debug_message)
-	'''
+
+	def title_info(self):
+		pod_info = []
+		try:
+			element = feedparser.parse(self.request) #instantiates feedparser object
+			pod_info.append(element.feed.title, element.feed.description, element.feed.link) #appends info for db table use later
+			return pod_info
+		except AttributeError as e:
+			print('The following error occured. Usually due to an inability to access the network.')
+
+	def feed_parse(self):
+		ele = feedparser.parse(self.request)
+		et, ele2 =self.etag(ele)
+		last, ele3 = self.last_mod(ele)
 		
-	for e in ele.entries:
-		if e.enclosures:
-			podList.append((ele.feed.title, e.title, e.enclosures[0]['href'], e.published, e.description))
-							
-	return podList
+		if et:
+			return [ele2.debug_message]
+		elif last:
+			return [ele3.debug_message]		
+		else:
+			if 'enclosures' in ele.entries[0]:				
+				chopFeed = self.encl_Feed(ele)
+			else:
+				chopFeed = self.reg_feed(ele)
+		return chopFeed		
+
+	def reg_feed(self, elePass):
+		podList = []
+		for e in elePass.entries:
+			tupList = ()
+			 
+			if 'title' in elePass.feed: 
+				tupList+=(elePass.feed.title,)
+			else:
+				tupList += (None,)	
+			if 'title' in e: 
+				tupList+=(e.title,)
+			else:
+				tupList+=(None,)		  
+			if 'href' in e['links'][1]: 
+				tupList += (e['links'][1]['href'],)
+			else:
+				tupList+=(None,)	
+			if e.published: 
+				tupList+=(e.published,)
+			else:
+				tupList+=(None,)	
+			if e.description: 
+				tupList+=(e.description,)
+			else:
+				tupList+=(None,)
+
+			if len(tupList) == 5: 
+				podList.append(tupList)
+			else:
+				podList.append('Insufficient Data!')
+		return podList
+		
+
+
+
+	def encl_Feed(self, elePass):
+		'''
+		Gets xml doc from rss source. Checks for enclosure tags.
+		Appends tuple to podList and returns. 
+		request: requested url from server 
+		type: string
+		rtype: list
+		'''
+		
+		podList = []
+		for e in elePass.entries:
+			tupList = ()
+			if e.enclosures: 
+				if 'title' in elePass.feed: 
+					tupList+=(elePass.feed.title,)
+				else:
+					tupList += (None,)	
+				if 'title' in e: 
+					tupList+=(e.title,)
+				else:
+					tupList+=(None,)		  
+				if 'href' in  e.enclosures[0]: 
+					tupList+=(e.enclosures[0]['href'],)
+				else:
+					tupList+=(None,)	
+				if e.published: 
+					tupList+=(e.published,)
+				else:
+					tupList+=(None,)	
+				if e.description: 
+					tupList+=(e.description,)
+				else:
+					tupList+=(None,)
+			
+			if len(tupList) == 5: 
+				podList.append(tupList)
+			else:
+				podList.append('Insufficient Data!')
+
+		return podList
+			
+	def etag(self, element):
+		if 'etag' in element.headers:
+			element2 = feedparser.parse(self.request, etag=element.etag)	
+			if element2.status == 304: 			
+				return True, element2
+			else:
+				return False, element	
+		else: 
+			return False, element
+
+	def last_mod(self, element):
+		if 'last-modified' in element.headers:
+			element2 = feedparser.parse(self.request, modified=element.modified)	
+			if element2.status == 304: 
+				return True, element2
+			else:
+				return False, element	
+		else: 
+			return False, element	
+
+	def etag_lastmod(self, row):
+		if len(row) < 2:
+			print(row[0])		
+			return True	
+		else:
+			return False
 
 def dataBasePopulate(connPass, curPass, args):
 	'''
@@ -64,7 +162,7 @@ def dataBasePopulate(connPass, curPass, args):
 	type: variable
 	args: args pass through
 	type: variable
-	rtype: None
+0	rtype: None
 	'''
 	print('Updating Database... This may take a moment.')
 	home=str(Path.home())
@@ -75,23 +173,35 @@ def dataBasePopulate(connPass, curPass, args):
 	for line in subscheck.subsRead():
 		for i in line:
 			if i.startswith('http'):
-				l = encl_Feed(i)
-
-				for attrib in l: #divides for episodeAdd()
-					podPath = os.path.join(pathHome, attrib[0])
-					fullLocation = os.path.join(podPath, attrib[1]+'.mp3')
-					if not os.path.isfile(fullLocation): # checks whether file exists, sets dl to "No".
-						dl="No"
-						check, message = directoryCheck(podPath) #checks whether directory exists. 						
-					else:
-						dl="yes"	
-
-
-					epDB = pod(desc=attrib[4], downloaded=dl, shortname=line[1] ,published=dateConvert(attrib[3]), date=datefmt ,connPass=connPass, curPass=curPass, src=attrib[2], series=attrib[0], title=attrib[1], hdpath=fullLocation)
-					epDB.episodeTable()
-					epDB.episodeAdd()
-					if args.verbose: print('[+] {0}: {1}'.format(attrib[1], attrib[2]))
-				
+				pp = pod_parse(i)
+				l = pp.feed_parse()
+				etag = pp.etag_lastmod(l)
+				if etag: 
+					break
+				else:
+					loadCount = 0
+					errCount = 0
+					for attrib in l: #divides for episodeAdd()
+						podPath = os.path.join(pathHome, attrib[0])
+						fullLocation = os.path.join(podPath, attrib[1]+'.mp3')
+						if not os.path.isfile(fullLocation): # checks whether file exists, sets dl to "No".
+							dl="No"
+							check, message = directoryCheck(podPath) #checks whether directory exists. 						
+						else:
+							dl="yes"	
+	
+						try:
+														
+							dateCon = dateConvert(attrib[3])								
+							epDB = pod(desc=attrib[4], downloaded=dl, shortname=line[1] ,published=dateCon, date=datefmt ,connPass=connPass, curPass=curPass, src=attrib[2], series=attrib[0], title=attrib[1], hdpath=fullLocation)
+							epDB.episodeTable()
+							epDB.episodeAdd()
+							loadCount += 1
+							if args.verbose: print('[+] {0}: {1}'.format(attrib[1], attrib[2]))
+						except Exception as e:
+							errCount += 1
+							print ('Upload Err: {0}: {1}'.format(str(e.__class__), str(e)))
+					if errCount != 0: print("{}/{} failed".format(errCount, loadCount))		
 			else:
 				pass 			
 
@@ -120,10 +230,13 @@ def dateConvert(date):
 	date: date object from datetime.datetime.now()
 	type: string
 	'''
+	
 	original = dt.strptime(date, "%a, %d %b %Y %H:%M:%S %z")
-	fmt = dt.strftime(original, '%Y/%m/%d')
-	return fmt
-
+	try:
+		fmt = dt.strftime(original, '%Y/%m/%d')
+		return fmt
+	except Exception as e:
+		pass
 def subscriptionUpdater (connPass, curPass, args):
 	'''
 	Manages podcast subscriptions.
@@ -146,7 +259,7 @@ def subscriptionUpdater (connPass, curPass, args):
 		subsData = pod(date=datefmt, series=args.name, src=args.feed, curPass = curPass, connPass=connPass)
 	
 	if args.feed:
-		info =title_info(args.feed)
+		info = pod_parse.title_info(args.feed)
 		subs_info = pod(title=info[0], desc=info[1], date=datefmt, series=args.name, src=args.feed, curPass = curPass, connPass=connPass)
 		enscribe=ww(title='subs.txt', text=args.feed+'\n') #instantiates for txtWriter()
 		enscribe.txtWriter(mode='a') #appends whatever rss urls to subs.txt
@@ -164,7 +277,7 @@ def subscriptionUpdater (connPass, curPass, args):
 
 	elif args.rfeed:
 		if args.name == None:
-			subsView(subsData)
+			subsView(subsData, args)
 			print('Please enter the name of the series to be removed.')
 			print('Usage: podcatch.py -r --name <"short name for series">')
 			exit()

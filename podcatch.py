@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 '''
-version 0.9.1
+version 0.9.3
 MIT License
 '''
 
@@ -11,7 +11,6 @@ from datetime import datetime as dt
 import platform
 import paramiko
 import feedparser
-
 from writer import Writer as ww #personal module, use if you find useful.
 from podDB import podData as pod #personal module, use if you find useful
 
@@ -22,8 +21,7 @@ class pod_parse:
 	def __init__(self, request=None):
 		self.request = request
 
-
-	def title_info(self):
+	def _title_info(self):
 		pod_info = []
 		try:
 			element = feedparser.parse(self.request) #instantiates feedparser object
@@ -32,10 +30,10 @@ class pod_parse:
 		except AttributeError as e:
 			print('The following error occured. Usually due to an inability to access the network.')
 
-	def feed_parse(self):
+	def _feed_parse(self):
 		ele = feedparser.parse(self.request)
-		et, ele2 =self.etag(ele)
-		last, ele3 = self.last_mod(ele)
+		et, ele2 =self._etag(ele)
+		last, ele3 = self._last_mod(ele)
 		
 		if et:
 			return [ele2.debug_message]
@@ -43,47 +41,44 @@ class pod_parse:
 			return [ele3.debug_message]		
 		else:
 			if 'enclosures' in ele.entries[0]:				
-				chopFeed = self.encl_Feed(ele)
+				chopFeed = self._encl_Feed(ele)
 			else:
-				chopFeed = self.reg_feed(ele)
+				chopFeed = self._reg_feed(ele)
 		return chopFeed		
 
-	def reg_feed(self, elePass):
+	def _reg_feed(self, elePass):
 		podList = []
 		for e in elePass.entries:
 			tupList = ()
 			 
 			if 'title' in elePass.feed: 
-				tupList+=(elePass.feed.title,)
+				tupList += (elePass.feed.title,)
 			else:
 				tupList += (None,)	
 			if 'title' in e: 
-				tupList+=(e.title,)
+				tupList += (e.title,)
 			else:
-				tupList+=(None,)		  
+				tupList += (None,)		  
 			if 'href' in e['links'][1]: 
 				tupList += (e['links'][1]['href'],)
 			else:
-				tupList+=(None,)	
+				tupList += (None,)	
 			if e.published: 
-				tupList+=(e.published,)
+				tupList += (e.published,)
 			else:
-				tupList+=(None,)	
+				tupList += (None,)	
 			if e.description: 
-				tupList+=(e.description,)
+				tupList += (e.description,)
 			else:
-				tupList+=(None,)
+				tupList += (None,)
 
 			if len(tupList) == 5: 
 				podList.append(tupList)
 			else:
 				podList.append('Insufficient Data!')
 		return podList
-		
 
-
-
-	def encl_Feed(self, elePass):
+	def _encl_Feed(self, elePass):
 		'''
 		Gets xml doc from rss source. Checks for enclosure tags.
 		Appends tuple to podList and returns. 
@@ -97,26 +92,28 @@ class pod_parse:
 			tupList = ()
 			if e.enclosures: 
 				if 'title' in elePass.feed: 
-					tupList+=(elePass.feed.title,)
+					tupList += (elePass.feed.title,)
 				else:
 					tupList += (None,)	
 				if 'title' in e: 
-					tupList+=(e.title,)
+					tupList += (e.title,)
 				else:
-					tupList+=(None,)		  
+					tupList += (None,)		  
 				if 'href' in  e.enclosures[0]: 
-					tupList+=(e.enclosures[0]['href'],)
+					tupList += (e.enclosures[0]['href'],)
 				else:
-					tupList+=(None,)	
+					tupList += (None,)	
 				if e.published: 
-					tupList+=(e.published,)
+					tupList += (e.published,)
 				else:
-					tupList+=(None,)	
+					tupList += (None,)	
 				if e.description: 
-					tupList+=(e.description,)
+					tupList += (e.description,)
 				else:
-					tupList+=(None,)
-			
+					tupList += (None,)
+			else:
+				pass
+
 			if len(tupList) == 5: 
 				podList.append(tupList)
 			else:
@@ -124,7 +121,7 @@ class pod_parse:
 
 		return podList
 			
-	def etag(self, element):
+	def _etag(self, element):
 		if 'etag' in element.headers:
 			element2 = feedparser.parse(self.request, etag=element.etag)	
 			if element2.status == 304: 			
@@ -134,7 +131,7 @@ class pod_parse:
 		else: 
 			return False, element
 
-	def last_mod(self, element):
+	def _last_mod(self, element):
 		if 'last-modified' in element.headers:
 			element2 = feedparser.parse(self.request, modified=element.modified)	
 			if element2.status == 304: 
@@ -144,7 +141,7 @@ class pod_parse:
 		else: 
 			return False, element	
 
-	def etag_lastmod(self, row):
+	def _etag_lastmod(self, row):
 		if len(row) < 2:
 			print(row[0])		
 			return True	
@@ -167,15 +164,14 @@ def dataBasePopulate(connPass, curPass, args):
 	print('Updating Database... This may take a moment.')
 	home=str(Path.home())
 	pathHome = os.path.join(home, 'Music', 'podcasts/')
-	
 
 	subscheck = pod(curPass=curPass)
 	for line in subscheck.subsRead():
 		for i in line:
 			if i.startswith('http'):
 				pp = pod_parse(i)
-				l = pp.feed_parse()
-				etag = pp.etag_lastmod(l)
+				l = pp._feed_parse()
+				etag = pp._etag_lastmod(l)
 				if etag: 
 					break
 				else:
@@ -186,27 +182,28 @@ def dataBasePopulate(connPass, curPass, args):
 						fullLocation = os.path.join(podPath, attrib[1]+'.mp3')
 						if not os.path.isfile(fullLocation): # checks whether file exists, sets dl to "No".
 							dl="No"
-							check, message = directoryCheck(podPath) #checks whether directory exists. 						
+							check, message = _directoryCheck(podPath) #checks whether directory exists. 						
 						else:
 							dl="yes"	
 	
-						try:
-														
-							dateCon = dateConvert(attrib[3])								
+						try:								
+							dateCon = _dateConvert(attrib[3])								
 							epDB = pod(desc=attrib[4], downloaded=dl, shortname=line[1] ,published=dateCon, date=datefmt ,connPass=connPass, curPass=curPass, src=attrib[2], series=attrib[0], title=attrib[1], hdpath=fullLocation)
 							epDB.episodeTable()
 							epDB.episodeAdd()
-							loadCount += 1
+							loadCount  +=  1
 							if args.verbose: print('[+] {0}: {1}'.format(attrib[1], attrib[2]))
 						except Exception as e:
-							errCount += 1
+							errCount  +=  1
 							print ('Upload Err: {0}: {1}'.format(str(e.__class__), str(e)))
+
 					if errCount != 0: print("{}/{} failed".format(errCount, loadCount))		
 			else:
 				pass 			
 
 
-def directoryCheck(path):
+
+def _directoryCheck(path):
 	'''
 	Checks to see if folder exists and if not
 	creates all necessary folders in path. 
@@ -224,7 +221,7 @@ def directoryCheck(path):
 	else:				
 		return (False, 'False.')	
 
-def dateConvert(date):
+def _dateConvert(date):
 	'''
 	Converts date from original and returns fmt.
 	date: date object from datetime.datetime.now()
@@ -237,212 +234,297 @@ def dateConvert(date):
 		return fmt
 	except Exception as e:
 		pass
-def subscriptionUpdater (connPass, curPass, args):
-	'''
-	Manages podcast subscriptions.
-	connPass: connection pass through
-	type: variable
-	curPass: cursor pass through
-	type: variable
-	args: args pass through
-	type: variable	
-	'''
 
-	if args.feed: #makes the use of args.name mandatory. 
-		if args.name==None:
-			print('Please enter a name for subscribing to a new series.')
-			print('Usage: podcatch.py -f <"URL"> --name <"short name for series">')
-			exit()
+class Subscriptions:
+
+	def __init__(self, connectP = None, cursorP = None, args=None):
+
+		self.connectP = connectP
+		self.cursorP = cursorP
+		self.args = args
+			
+	def subscriptionUpdater(self):
+		'''
+		Manages podcast subscriptions.
+		connPass: connection pass through
+		type: variable
+		curPass: cursor pass through
+		type: variable
+		args: args pass through
+		type: variable	
+		'''
+
+		if self.args.feed or self.args.rfeed: #makes the use of args.name mandatory. 
+			if self.args.name==None:
+				print('Please enter a name for adding/removing a series.')
+				print('Add Usage: podcatch.py -f <"URL"> --name <"short name for series">')
+				print('Remove Usage: podcatch.py -r <"URL"> --name <"short name for series">')
+				exit()
+			else:
+				pass	
 		else:
-			pass	
-	else:
-		subsData = pod(date=datefmt, series=args.name, src=args.feed, curPass = curPass, connPass=connPass)
-	
-	if args.feed:
-		info = pod_parse(args.feed)
-		subs_info = pod(title=info.title_info[0], desc=info.title_info[1], date=datefmt, series=args.name, src=args.feed, curPass = curPass, connPass=connPass)
-		enscribe=ww(title='subs.txt', text=args.feed+'\n') #instantiates for txtWriter()
-		enscribe.txtWriter(mode='a') #appends whatever rss urls to subs.txt
+			subsData = pod(date=datefmt, series=self.args.name, src=self.args.feed, curPass = self.cursorP, connPass=self.connectP)
+		
+		if self.args.feed:
+			self.add_feed()			
+		elif self.args.rfeed:
+			self.remove_feed(subsData)	
+		elif self.args.view:
+			self.subsView(subsData)
+		else:
+			pass		
+
+	def add_feed(self):
+		info = pod_parse._title_info(self.args.feed)
+		subs_info = pod(title=info[0], desc=info[1], date=datefmt, series=self.args.name, src=self.args.feed, curPass = self.curPass, connPass=self.connPass)
+		enscribe=ww(title='subs.txt', text=self.args.feed+'\n') #instantiates for txtWriter()
+		if not os.path.isfile('subs.txt'):
+			enscribe.txtWriter()
+		else:	
+			enscribe.txtWriter(mode='a') #appends whatever rss urls to subs.txt
+		
 		subs_info.subsAdd() 
 		print ("Subscription added! Database will update...please wait just a moment.")
-		dataBasePopulate(connPass, curPass, args)
+		dataBasePopulate(self.connectP, self.cursorP, self.args)
 		print('Would you like to view or download the episodes?')
-		eps = input('y/n: ')
-		if eps.lower() == 'y':
+		eps = input('Y/n: ')
+		if eps.lower() != 'y':
+			exit()
+		else:	
 			print('Ok!')
+			dl = Downloading(connP=self.connectP, curP=self.cursorP, args=self.args)
+			dl.seriesDownload()
 			
-			seriesDownload(connPass, curPass, args)
+	def remove_feed(self, subsData):
+		print('Would you like to delete the episodes as well?')
+		eps_delete=input('Y/n')
+		if eps_delete.lower() == 'n' or 'no':
+			try:
+				subsData.subsDelete(self.args.name)
+				print('{} subscription deleted.'.format(self.args.name))
+			except:
+				print('Invalid name or subscription doesn\'t exist: {}'.format(self.args.name))	
+		elif eps_delete.lower() == 'y' or 'yes':
+				self.removeSeries()
 		else:
-			pass
+			print('You have entered an invalid answer. Goodbye.')
+			exit()		
 
-	elif args.rfeed:
-		if args.name == None:
-			subsView(subsData, args)
+	def subsView(self, subsData):
+		'''
+		Displays current subscriptions.
+		subsData: instantiation pass through
+		'''
+		for line in subsData.subsRead():
+			if self.args.verbose:
+				print('''
+	[+] {0}: {1} 
+	{2}	'''.format(line[1], line[2], line[4])
+					)
+			else:	
+				print('[+] {0} added on {1}'.format(line[1], line[0]))
+
+	def subLoad(self):
+		"""
+		Updates subscriptions based on a text file list of url sources. 
+		connPass: connection pass through
+		type: variable
+		curPass: cursor pass through
+		type: variable	
+		"""
+
+		with open('subs.txt', 'r') as subs:
+			for line in subs:
+				if line != '\n':
+					print(line)
+					name = input('[+] Give me a shortname for the above feed: ')
+					if name == "":
+						print('[-] That is an unacceptable name.')
+						break
+					else:						
+						line2 = line.strip()
+						feed = pod_parse(line2)
+						info = feed._title_info()
+						subsData = pod(date=datefmt, title=info[0], desc=info[1],  series=name, src=line2, curPass = self.cursorP, connPass=self.connectP)
+						subsData.subsAdd()
+						print ("[+] {0} has been added.".format(name))
+				else:
+					print("Empty line. :(")
+
+	def removeSeries(self):
+		'''
+		removes an entire series mp3 tracks and database entries.
+		connPass: connection pass through
+		type: variable
+		curPass: cursor pass through
+		type: variable
+		args: args pass through
+		type: variable
+		'''
+		if not self.args.name:
+			subsData=pod(connPass=self.connectP, curPass=self.cursorP)
+			self.subsView(subsData)
 			print('Please enter the name of the series to be removed.')
-			print('Usage: podcatch.py -r --name <"short name for series">')
+			print('Usage: podcatch.py -remove --name <"short name for series">')
 			exit()
 		else:
-			print('Would you like to delete the episodes as well?')
-			eps_delete=input('Y/n')
-			if eps_delete.lower() == 'n' or 'no':
-				try:
-					subsData.subsDelete(args.name)
-					print('{} subscription deleted.'.format(args.name))
-				except:
-					print('Invalid name or subscription doesn\'t exist: {}'.format(args.name))	
-			elif eps_delete.lower() == 'y' or 'yes':
-					removeSeries(connPass, curPass, args)
+			seriesList=pod(connPass=self.connectP, curPass=self.cursorP, shortname=self.args.name)	
+			print(
+			"""This will remove all episodes from database and episode
+				files from hard drive. Are you sure you want to continue?""")
+			try:
+				verify = input('ENTER to continue. Type "exit" or press ctrl+c to quit.')
+			except KeyboardInterrupt:
+				print('Goodbye!')
+				exit()
+
+			if verify.lower() != 'exit':	
+
+				for row in seriesList.episodeOwn():
+					try:
+						if os.path.isfile(row[3]): 
+							os.unlink(row[3])
+						else:
+							pass	
+					except:
+						print('Something Went Wrong!')	
+
+				seriesList.seriesDelete()
+				seriesList.subsDelete(self.args.name)
 			else:
-				print('You have entered an invalid answer. Goodbye.')
-				exit()		
-	elif args.view:
-		subsView(subsData, args)
-	else:
-		pass		
+				print('Goodbye')
+				exit()							
 
-def subsView(subsData, args):
-	'''
-	Displays current subscriptions.
-	subsData: instantiation pass through
-	'''
-	for line in subsData.subsRead():
-		if args.verbose:
-			print('''
-[+] {0}: {1} 
-{2}	'''.format(line[1], line[2], line[4])
-				)
-		else:	
-			print('[+] {0} added on {1}'.format(line[1], line[0]))
+class Downloading:
+	def __init__(self, connP = None, curP = None, args = None):
 
+		self.connP = connP
+		self.curP = curP
+		self.args = args
+		
+	def db_conn(self):
+		pod_DB = pod(connPass=self.connP, curPass=self.curP)
+		return pod_DB
 
-def subLoad(connPass, curPass):
-	"""
-	Updates subscriptions based on a text file list of url sources. 
-	connPass: connection pass through
-	type: variable
-	curPass: cursor pass through
-	type: variable	
-	"""
-
-	with open('subs.txt', 'r') as subs:
-		for line in subs:
-			if line != '\n':
-				print(line)
-				name = input('[+] Give me a shortname for the above feed: ')
-				if name == "":
-					print('[-] That is an unacceptable name.')
-					break
-				else:						
-					line2 = line.strip()
-					info = title_info(line2)
-					subsData = pod(date=datefmt, title=info[0], desc=info[1],  series=name, src=line2, curPass = curPass, connPass=connPass)
-					subsData.subsAdd()
-					print ("[+] {0} has been added.".format(name))
-			else:
-				print("Empty line. :(")		
-
-
-def seriesDownload(connPass, curPass, args):
-	'''
-	Lists subscriptions, then episodes related to subscription numbered, finally
-	passes to writer module and uses requests to download file.
-	connPass: connection pass through
-	type: variable
-	curPass: cursor pass through
-	type: variable
-	args: args pass through
-	type: variable
-	'''
-
-	sdl = pod(connPass=connPass, curPass=curPass)
-	
-	if args.name:
-		seriesFunc = sdl.seriesDownload(args.name)
-	else:
-		subsView(sdl, args)
-		series=input("What series would you like to download from?: ")
-		seriesFunc = sdl.seriesDownload(series)	
-	
-	for en, row in enumerate(seriesFunc):
-		print ('''[{0}] {1}
-	{2}\n'''.format(str(en), row[1], row[4])) 
-	print('Which number(s) would you like to download (without brackets)? Separate with spaces:')	
-	print('Press ctrl+c to exit.')
-	try:
-		number=input('> ')
-	except KeyboardInterrupt:
-		print("Goodbye.")
-		exit()
-	number=number.split(' ')
-	verify(number)
-	if not verify:
-		print("Entry is not a number.")
-		exit()
-	else:
-		pass	
-
-	for en, row in enumerate(sdl.seriesDownload(series)):	
-		if str(en) in number:
-			if not os.path.isfile(row[3]):	
-				print('\n[+] {0}: {1} is downloading...'.format(row[0], row[1]))
-				try:
-					enscribe = ww(title=row[3], src=row[2])
-					enscribe.fileWriter()
-					sdl.episodeUpdate("yes", row[1])
-					print('[+] Success!')
-				except ConnectionError as e:
-					print('Error:\n{}'.format(str(e)))		
-			else:
-				print('\n[-] {0}: {1} already exists at path {2}.'.format(row[0], row[1], row[3]))
+	def seriesDownload(self):
+		'''
+		Lists subscriptions, then episodes related to subscription numbered, finally
+		passes to writer module and uses requests to download file.
+		connPass: connection pass through
+		type: variable
+		curPass: cursor pass through
+		type: variable
+		args: args pass through
+		type: variable
+		'''
+		
+		if self.args.name:
+			seriesFunc = self.db_conn().seriesDownload(self.args.name)
 		else:
-			pass		
+			subs = Subscriptions(connectP=self.connP, cursorP=self.curP, args=self.args)
+			subs.subsView()
+			series=input("What series would you like to download from?: ")
+			seriesFunc = self.db_conn().seriesDownload(series)	
+		
+		for en, row in enumerate(seriesFunc):
+			print ('''[{0}] {1}
+		{2}\n'''.format(str(en), row[1], row[4])) 
+		print('Which number(s) would you like to download (without brackets)? Separate with spaces:')	
+		print('Press ctrl+c or type "exit" to exit.')
+		number = intCheckInput()
 
-def recentEpsDL(connPass, curPass, args):
-	'''
-	Displays last 10 episodes to be entered into database that are currently not in your possession.
-	Create way to update downloaded collumn in database. check if functioning.
-	'''
-	passThru = pod(connPass=connPass, curPass=curPass)
-	for en, row in enumerate(passThru.episodeRecent()):
-		if row not in passThru.episodeOwn():
+		for en, row in enumerate(seriesFunc):	
+			if str(en) in number:
+				if not os.path.isfile(row[3]):	
+					print('\n[+] {0}: {1} is downloading...'.format(row[0], row[1]))
+					try:
+						enscribe = ww(title=row[3], src=row[2])
+						enscribe.fileWriter()
+						self.db_conn().episodeUpdate("yes", row[1])
+						print('[+] Success!')
+					except ConnectionError as e:
+						print('Error:\n{}'.format(str(e)))		
+				else:
+					print('\n[-] {0}: {1} already exists at path {2}.'.format(row[0], row[1], row[3]))
+			else:
+				pass		
 
-			if args.verbose:
-				print(
-'''[{0}] {1}
-{2} {3}
-{4}\n
-'''.format(str(en), row[0], row[1], row[4], row[7])
-				)
-			else:	
-				print (
-'''[{0}] {1}
-{2} {3}\n'''.format(str(en), row[0], row[1], row[4]))
-		else:
-			pass		
-	print('Which number(s) would you like to download (without brackets)? Separate with spaces:')	
-	print('Press ctrl+c to exit.')
-	number = intCheckInput()
+	def recentEpsDL(self):
+		'''
+		Displays last 10 episodes to be entered into database that are currently not in your possession.
+		Create way to update downloaded collumn in database. check if functioning.
+		'''
+		passThru = self.db_conn().episodeRecent()
+		for en, row in enumerate(passThru):
+			if row not in self.db_conn().episodeOwn():
 
-	for en, row in enumerate(passThru.episodeRecent()):
-		if str(en) in number:
-			if not os.path.isfile(row[3]):	
-				print('\n[+] {0}: {1} is downloading...'.format(row[0], row[1]))
+				if self.args.verbose:
+					print(
+	'''[{0}] {1}
+	{2} {3}
+	{4}\n
+	'''.format(str(en), row[0], row[1], row[4], row[7])
+					)
+				else:	
+					print (
+	'''[{0}] {1}
+	{2} {3}\n'''.format(str(en), row[0], row[1], row[4]))
+			else:
+				pass		
+		print('Which number(s) would you like to download (without brackets)? Separate with spaces:')	
+		print('Press ctrl+c or type "exit" to exit.')
+		number = intCheckInput()
+
+		for en, row in enumerate(self.db_conn().episodeRecent()):
+			if str(en) in number:
+				if not os.path.isfile(row[3]):	
+					print('\n[+] {0}: {1} is downloading...'.format(row[0], row[1]))
+					
+					try:	
+						enscribe = ww(title=row[3], src=row[2])
+						enscribe.fileWriter()
+						passThru.episodeUpdate("yes", row[1])
+						print('[+] Success!')
+					except ConnectionError as e:
+						print('Error:\n{0}, {1}'.format(str(e.__class__),str(e)))
+						exit()
+
+				else:
+					print('\n[-] {0}: {1} already exists at path {2}.'.format(row[0], row[1], row[3]))	
+			else:
+				pass
+
+	def deleteTrack(self):
+		track = self.db_conn()
+		for en, row in enumerate(track.episodeOwn()):
+			print('''[{0}] {1}
+		{2}: {3}
+		'''.format(str(en), row[0], row[2], row[1]))
+
+		print('Which number(s) would you like to delete (without brackets)? Separate with spaces:')	
+		print('Press ctrl+c or type "exit" to exit.')
+		number = intCheckInput()
+
+		for en, row in enumerate(track.episodeOwn()):
+			if str(en) in number:
 				
-				try:	
-					enscribe = ww(title=row[3], src=row[2])
-					enscribe.fileWriter()
-					passThru.episodeUpdate("yes", row[1])
-					print('[+] Success!')
-				except ConnectionError as e:
-					print('Error:\n{0}, {1}'.format(str(e.__class__),str(e)))
-					exit()
-
+				if os.path.isfile(row[3]):
+					print('\n[-] {0}: {1} has been removed.'.format(row[0], row[1]))
+					try:
+						os.unlink(row[3])
+						track.episodeUpdate('No', row[1])
+					except:
+						print('An error Occured')	
+					
+					print('Done!')
+				else:
+					print('''\n[-] {0}: {1} does not exist at the indicated PATH.
+				Was it moved or deleted by user or administrator?'''.format(row[0], row[1]))		
+			
 			else:
-				print('\n[-] {0}: {1} already exists at path {2}.'.format(row[0], row[1], row[3]))	
-		else:
-			pass		
+				pass	
 
-def verify(numlist):
+def _verify(numlist):
 
 	try:	
 		verify=all(isinstance(int(item), int) for item in numlist)
@@ -453,64 +535,36 @@ def verify(numlist):
 
 def intCheckInput():
 	try:
-		number=input("> ")
+		number = input("> ")
 	except KeyboardInterrupt:
 		print('Goodbye.')
 		exit()
 	number = number.split(' ')
 	
-	if number=='':
+	if number == '':
 		print('Entry is not valid.')
 		exit()
+	elif number == 'exit':
+		print("Goodbye")
+		exit()	
 	else:
-		pass	
+		ver=_verify(number)
 
-	verify(number)
-
-	if not verify:
+	if not ver:
 		exit()
 	else:
 		return number
 
-def deleteTrack(connPass, curPass):
-	track = pod(connPass=connPass, curPass=curPass)
-	for en, row in enumerate(track.episodeOwn()):
-		print('''[{0}] {1}
-	{2}: {3}
-	'''.format(str(en), row[0], row[2], row[1]))
 
-	print('Which number(s) would you like to delete (without brackets)? Separate with spaces:')	
-	print('Press ctrl+c to exit.')
-	number = intCheckInput()
-
-	for en, row in enumerate(track.episodeOwn()):
-		if str(en) in number:
-			
-			if os.path.isfile(row[3]):
-				print('\n[-] {0}: {1} has been removed.'.format(row[0], row[1]))
-				try:
-					os.unlink(row[3])
-					track.episodeUpdate('No', row[1])
-				except:
-					print('An error Occured')	
-				
-				print('Done!')
-			else:
-				print('''\n[-] {0}: {1} does not exist at the indicated PATH.
-			Was it moved or deleted by user or administrator?'''.format(row[0], row[1]))		
-		
-		else:
-			pass	
-
-def currentPodcasts(connPass, curPass):
-	current=pod(connPass=connPass, curPass=curPass)
+def currentPodcasts(connectPass, cursorPass):
+	current = pod(connPass=connectPass, curPass=cursorPass)
 	print('These are your current tracks.')
 	for en, row in enumerate(current.episodeOwn()):
 		print('''[{0}]{1}
 		{2} {3}'''.format(str(en), row[0], row[1], row[2]))
 
-def trackCheck(connPass, curPass):
-	track = pod(connPass=connPass, curPass=curPass)
+def _trackCheck(connectPass, cursorPass):
+	track = pod(connPass=connectPass, curPass=cursorPass)
 	for row in track.episodeOwn():
 		if os.path.isfile(row[3]):
 			track.episodeUpdate('yes', row[1])
@@ -518,130 +572,100 @@ def trackCheck(connPass, curPass):
 			track.episodeUpdate('No', row[1])	
 
 
-def removeSeries(connPass, curPass, args):
-	'''
-	removes an entire series mp3 tracks and database entries.
-	connPass: connection pass through
-	type: variable
-	curPass: cursor pass through
-	type: variable
-	args: args pass through
-	type: variable
-	'''
-	if not args.name:
-		subsData=pod(connPass=connPass, curPass=curPass)
-		subsView(subsData)
-		print('Please enter the name of the series to be removed.')
-		print('Usage: podcatch.py -remove --name <"short name for series">')
-		exit()
-	else:
-		seriesList=pod(connPass=connPass, curPass=curPass, shortname=args.name)	
-		print(
-		"""This will remove all episodes from database and episode
-			files from hard drive. Are you sure you want to continue?""")
+class sftp_comm:
+	
+	def __init__(self, connPass=None, curPass=None ,args=None):
+		self.connPass = connPass
+		self.curPass = curPass
+		self.args = args
+
+	def sftpClient(self, host, port=22, username="user", passw=None, keypath=None, keypass=None):
+		'''
+		sftpClient is vehicle for sftp transfer of podcast files.
+		host: Host address of ssh server
+		type: string
+		port: port number where a connection is to be made. default is 22
+		type: interger
+		username: user name of the account to connect to. Default is 'user'
+		type: string
+		passw: password for only password verification ssh servers. (insecure)
+		type: string
+		keypath: name of private key file. It is connected to the dir /home/<user>/.ssh 
+		type: string
+		keypass: password for private key
+		type: string
+		rtype: sftp object
+		'''
 		try:
-			verify = input('ENTER to continue, ctrl+c to escape.')
-		except KeyboardInterrupt:
-			print('Goodbye!')
-			exit()
+			if keypath!=None:
+				key=paramiko.RSAKey.from_private_key_file(keypath, password=keypass)
+			else:
+				pass
+			ssh = paramiko.SSHClient()
+			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+			ssh.connect(host, port, username, passw, key)
 
-		for row in seriesList.episodeOwn():
-			try:
-				if os.path.isfile(row[3]): 
-					os.unlink(row[3])
-				else:
-					pass	
-			except:
-				print('Something Went Wrong!')	
-
-		seriesList.seriesDelete()
-		seriesList.subsDelete(args.name)
-
-def sftpClient(host, port=22, username='user', passw=None, keypath=None, keypass=None):
-	'''
-	sftpClient is vehicle for sftp transfer of podcast files.
-	host: Host address of ssh server
-	type: string
-	port: port number where a connection is to be made. default is 22
-	type: interger
-	username: user name of the account to connect to. Default is 'user'
-	type: string
-	passw: password for only password verification ssh servers. (insecure)
-	type: string
-	keypath: name of private key file. It is connected to the dir /home/<user>/.ssh 
-	type: string
-	keypass: password for private key
-	type: string
-	rtype: sftp object
-	'''
-	try:
-		if keypath!=None:
-			key=paramiko.RSAKey.from_private_key_file(keypath, password=keypass)
-		else:
-			pass
-		ssh = paramiko.SSHClient()
-		ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-		ssh.connect(host, port, username, passw, key)
-
-		sftp = ssh.open_sftp()
-		sftp.sshclient = ssh
-		return sftp
-	
-
-	except Exception as e:
-		print('An error occurred creating SFTP client: {0}: {1}'.format(e.__class__, e))	
-		if sftp is not None:
-			sftp.close()
-		else:
-			pass	
-		if ssh is not None:
-			ssh.close()
-		else:
-			pass	
+			sftp = ssh.open_sftp()
+			sftp.sshclient = ssh
+			return sftp
 		
-		pass		
 
-def trackSend(connPass, curPass, args):
-	'''
-	Takes a track and sends it over sftp to your android device.
-	Saves it in /sdcard/Music/podcast/<shortname folder>
-	connPass: connection pass through
-	type: variable
-	curPass: cursor pass through
-	type: variable
-	args: args pass through
-	type: variable
-	'''
-	print('''We are going to connect to your phone
-	via ssh/sftp. Are we ready?''')
-	
-	confirm = input('Y/n: ')
-	if confirm.lower() != "y" or 'yes':
-		exit("Goodbye")
-	
-	if (args.port == None) and (args.host == None):
-		print('Some nessary details were omitted.')
-		print('usage: python3 podcatch.py --send --host "host" --port portnum --user "user" -k "keyname (e.g. id_rsa)"')
-		exit('Bye')	
-	else:	
-		username, host, port = args.user, args.host, args.port
+		except Exception as e:
+			print('An error occurred creating SFTP client: {0}: {1}'.format(e.__class__, e))	
+			if sftp is not None:
+				sftp.close()
+			else:
+				pass	
+			if ssh is not None:
+				ssh.close()
+			else:
+				pass	
+			
+			pass		
 
-		if not args.pkey:	
-			print('What\'s the password? Hit enter for private key entry.' )	
-			password = input('Password: ')
-			print('What\'s the key password? Hit enter if password entry.')
-			keypass=input('Keypass: ')		
-		else:
-			password, keypass = '', args.pkey
+	def _auth_(self):
+		print('''We are going to connect to your phone
+		via ssh/sftp. Are we ready?''')
+		
+		confirm = input('Y/n: ')
+		if confirm.lower() != "y" or 'yes': exit("Goodbye")
+		
+		if (self.args.host == None):
+			print('Some nessary details were omitted.')
+			print('usage: python3 podcatch.py [--sshsend or --sshrem] --host "host" --port portnum --user "user" -k "keyname (e.g. id_rsa)"')
+			exit('Bye')	
+		else:	
+			username, host, port = self.args.user, self.args.host, self.args.port
 
-		key=os.path.join(str(Path.home()), '.ssh', args.key)
-		sftp_client = sftpClient(args.host, args.port, args.user, password, key, keypass)
+			if not self.args.pkey:	
+				print('What\'s the password? Hit enter for private key entry.' )	
+				password = input('Password: ')
+				print('What\'s the key password? Hit enter if password entry.')
+				keypass=input('Keypass: ')		
+			else:
+				password, keypass = '', self.args.pkey
+
+			key=os.path.join(str(Path.home()), '.ssh', self.args.key)
+			sftp_client = self.sftpClient(self.args.host, self.args.port, self.args.user, password, key, keypass)
+			return sftp_client
+				
+	def trackSendAndroid(self):
+		'''
+		Takes a track and sends it over sftp to your android device.
+		Saves it in /sdcard/Music/podcast/<shortname folder>
+		connPass: connection pass through
+		type: variable
+		curPass: cursor pass through
+		type: variable
+		args: args pass through
+		type: variable
+		'''
+		sftp_client = self._auth_()
 		podcast = '/sdcard/Music'
 		sftp_client.chdir(podcast)
 		sdDir=sftp_client.listdir(podcast)
 		pod_folder= os.path.join(podcast, 'podcasts')
-		if 'podcasts' not in sdDir:
-			sftp_client.mkdir('podcasts')	
+		if 'podcasts' not in sdDir: sftp_client.mkdir('podcasts')	
 		sftp_client.chdir(pod_folder)	
 
 		current = currentPodcasts(connPass, curPass)
@@ -651,11 +675,10 @@ def trackSend(connPass, curPass, args):
 		number = intCheckInput()
 
 		podList = sftp_client.listdir(pod_folder)	
-		track = pod(connPass=connPass, curPass=curPass)	
+		track = pod(connPass=self.connPass, curPass=self.curPass)	
 		for en, row in enumerate(track.episodeOwn()):
 			series_folder = os.path.join(pod_folder, row[4])
-			if row[4] not in podList:
-				sftp_client.mkdir(row[4])
+			if row[4] not in podList: sftp_client.mkdir(row[4])
 			
 			sftp_client.chdir(series_folder)
 			if str(en) in number:
@@ -665,109 +688,89 @@ def trackSend(connPass, curPass, args):
 					print('Success!')
 				except Exception as e:
 					print('Err: {1}: {2}'.format(e.__class__, e))
-			sftp_client.chdir(pod_folder)			
+			else:
+				print('Error has occured!')		
+			sftp_client.chdir(pod_folder)
+			sftp_client.close()			
 
-def trackRemove(connPass, curPass, args):
-	'''
-	Will look at tracks on phone using subscription database as indicator. 
-	Removes tracks specified by user.
-	connPass: connection pass through
-	type: variable
-	curPass: cursor pass through
-	type: variable
-	args: args pass through
-	type: variable
-	'''
-
-	print('''We are going to connect to your phone
-	via ssh/sftp. Are we ready?''')
-	
-	confirm = input('Y/n: ') #Verifying desire to connect.
-	if confirm.lower() != "y" or 'yes':
-		exit("Goodbye")
-	else:
-		pass
-	
-	if (args.port == None) and (args.host == None): #exits if these two flags are absent
-		print('Some nessary details were omitted.')
-		print('usage: python3 podcatch.py --trackrem --host "host" --port portnum --user "user" -k "keyname (e.g. id_rsa)"')
-		exit('Bye')	
-	else:	
-		username, host, port = args.user, args.host, args.port #assigns variables.
-
-		if not args.pkey:	
-			print('What\'s the password? Hit enter for private key entry.' )	
-			password = input('Password: ') #password for a password only ssh system
-			print('What\'s the key password? Hit enter if password entry.')
-			keypass=input('Keypass: ')	#asks for private key password if any.	
-		else:
-			password, keypass = '', args.pkey #assigns variables for private key pass 
-
-	key=os.path.join(str(Path.home()), '.ssh', args.key) #connects private key path to 
-	sftp_client = sftpClient(args.host, args.port, args.user, password, key, keypass) #sets up client
-	podcast = '/sdcard/Music' 
-	sftp_client.chdir(podcast) #changes to dir above
-	sdDir=sftp_client.listdir(podcast) #gets a list of dir in the Music dir
-	pod_folder= os.path.join(podcast, 'podcasts')
-	if 'podcasts' not in sdDir: #checks if podcasts dir in music
-		print('You currently don\'t have podcasts in the default dir.')
-		exit('Goodbye') 	
-	else:
-		pass
-
-	subs = pod(connPass=connPass, curPass=curPass) #instantiates db class.	
-	
-	for en, row in enumerate(subs.subsRead()): #subs data used to select folder.
-		print('[{0}] {1}'. format(str(en), row[1]))
-	print('From which series would you like to remove episodes?') 
-	print('Please separate selections with spaces')	
-	number= intCheckInput() #takes number as input and verifies they are all integers
-	
-	for en, row in enumerate(subs.subsRead()): #subs data used to select folder and get file listings within each
-		folder = os.path.join(pod_folder, row[1])
-		if str(en) in number:
-			
-			if sftp_client.getcwd() != folder: sftp_client.chdir(folder) #switches to folder dir.
-	
-			fileList = sftp_client.listdir(folder) #gets file listing for specific folder.
+	def trackRemoveAndroid(self):
+		'''
+		Will look at tracks on phone using subscription database as indicator. 
+		Removes tracks specified by user.
+		connPass: connection pass through
+		type: variable
+		curPass: cursor pass through
+		type: variable
+		args: args pass through
+		type: variable
+		'''
+		sftp_client = self._auth_()
+		podcast = '/sdcard/Music' 
+		sftp_client.chdir(podcast) #changes to dir above
+		sdDir=sftp_client.listdir(podcast) #gets a list of dir in the Music dir
+		pod_folder= os.path.join(podcast, 'podcasts')
+		if 'podcasts' not in sdDir: #checks if podcasts dir in music
+			print('You currently don\'t have podcasts in the default dir.')
+			exit('Goodbye') 	
 		else:
 			pass
 
-		for enum, f in enumerate(fileList): #creates a rough number system to list: folder and track.
-			print("[{0}-{1}] {2}".format(str(en), str(enum), f))
-			sftp_client.chdir(pod_folder)
-
-	print('Which episodes would you like to remove?')
-	print('Please use the n-n with a space between (e.g. 1-1 2-2 3-3)')		
-	n0 = input("> ")
-	n1=n0.split(" ")
-	n2 = [n.split('-') for n in n1]  #should be [[1,1],[2,2]] etc.
+		subs = pod(connPass=connPass, curPass=curPass) #instantiates db class.	
 		
-	for n in n2: #similar verification to intCheckInput
-		verify(n)
-		if not verify: exit()	
+		for en, row in enumerate(subs.subsRead()): #subs data used to select folder.
+			print('[{0}] {1}'. format(str(en), row[1]))
+		print('From which series would you like to remove episodes?') 
+		print('Please separate selections with spaces')	
+		number= intCheckInput() #takes number as input and verifies they are all integers
+		
+		for en, row in enumerate(subs.subsRead()): #subs data used to select folder and get file listings within each
+			folder = os.path.join(pod_folder, row[1])
+			if str(en) in number:
+				
+				if sftp_client.getcwd() != folder: sftp_client.chdir(folder) #switches to folder dir.
+		
+				fileList = sftp_client.listdir(folder) #gets file listing for specific folder.
+			else:
+				pass
 
-	for en, row in enumerate(subs.subsRead()): #accesses folders via subs data
-		folder = os.path.join(pod_folder, row[1])#creates folder
-		for n in n2:	#iterates through list of lists.
-			if str(en) == n[0]: #indicates folder
-				if sftp_client.getcwd() != folder: sftp_client.chdir(folder)
+			for enum, f in enumerate(fileList): #creates a rough number system to list: folder and track.
+				print("[{0}-{1}] {2}".format(str(en), str(enum), f))
+				sftp_client.chdir(pod_folder)
 
-				fileList=sftp_client.listdir(folder)
-				sftp_client.remove(fileList[n[1]]) #indicates index of file to remove.
+		print('Which episodes would you like to remove?')
+		print('Please use the n-n with a space between (e.g. 1-1 2-2 3-3)')		
+		n0 = input("> ")
+		n1=n0.split(" ")
+		n2 = [n.split('-') for n in n1]  #should be [[1,1],[2,2]] etc.
+			
+		for n in n2: #similar verification to intCheckInput
+			verify(n)
+			if not verify: 
+				sftp_client.close()
+				exit()
 			else:
 				pass		
-	sftp_client.close()
-	
 
-def first_run():
+		for en, row in enumerate(subs.subsRead()): #accesses folders via subs data
+			folder = os.path.join(pod_folder, row[1])#creates folder
+			for n in n2:	#iterates through list of lists.
+				if str(en) == n[0]: #indicates folder
+					if sftp_client.getcwd() != folder: sftp_client.chdir(folder)
+
+					fileList=sftp_client.listdir(folder)
+					sftp_client.remove(fileList[n[1]]) #indicates index of file to remove.
+				else:
+					pass		
+		sftp_client.close()
+		
+def _first_run():
 	dbfile = os.path.join(str(Path.home()),'.dbpath')
 	
 	if platform.os.name == 'posix':
 		
 		if os.path.isfile('podcatch.py') and not os.path.isfile(dbfile): 
 			db = os.path.join(os.getcwd(), 'podbase.db')
-			with open(dbfile, 'w') as dbpath:
+			with open(dbfile, 'w+') as dbpath:
 				dbpath.write(db)
 			
 			if platform.system() == "Linux":
@@ -793,13 +796,13 @@ def first_run():
 		print('You are not on a posix system.')
 		exit()		
 
-def database_conn_cur(path):
+def _database_conn_cur(path):
 	conn = sqlite3.connect(path)
 	c = conn.cursor()
 	tables=pod(connPass=conn, curPass=c)
 	tables.subsTable()
 	tables.episodeTable()
-	trackCheck(conn, c)
+	_trackCheck(conn, c)
 	return conn, c
 
 def main():
@@ -826,16 +829,22 @@ def main():
 	parser.add_argument('--version', dest='version', help='Gives current version.', action='store_true')
 	args = parser.parse_args()
 	
-	database = first_run()
-	conn, c = database_conn_cur(database)
-	version = 'version: 0.9.1'
-	
-	if args.feed or args.rfeed or args.view:
-		subscriptionUpdater(conn, c, args)
+	database = _first_run()
+	conn, c = _database_conn_cur(database)
+	version = 'version: 0.9.3'
+
+	dl = Downloading(connP=conn, curP=c, args=args)
+	subs = Subscriptions(connectP=conn, cursorP=c, args=args)
+
+
+	if args.feed or args.rfeed or args.view:	
+		subs.subscriptionUpdater()
 
 	if args.update or args.recent or args.series:
+		
 		try:
 			dataBasePopulate(conn, c, args)
+		
 		except Exception as e:
 			print("Err: {0}: {1}".format(e.__class__, str(e)))
 
@@ -843,21 +852,25 @@ def main():
 			print("Would you like to see recent episodes?")
 			rec = input("Y/n")
 			if rec.lower() == 'y':
-				recentEpsDL(conn, c, args)
+				dl.recentEpsDL()
 			else:
 				exit()
 		elif args.recent: 
-			recentEpsDL(conn, c, args)
+			dl.recentEpsDL()
 		elif args.series: 
-			seriesDownload(conn, c, args)			
+			dl.seriesDownload()			
 
-	if args.load: subLoad(conn, c)
-	if args.delete: deleteTrack(conn, c)			
+	if args.load: subs.subLoad()
+	if args.delete: dl.deleteTrack()			
 	if args.current: currentPodcasts(conn, c)
-	if args.remove: removeSeries(conn, c, args)
-	if args.send: trackSend(conn, c, args)
-	if args.rem: trackRemove(conn, c, args)
-	
+	if args.remove: subs.removeSeries()
+	if args.send or args.rem: 
+		sftp_c = sftp_comm(conn, c, args)
+		if args.send: sftp_c.trackSendAndroid()
+		if args.rem: sftp_c.trackRemoveAndroid()
+	else:
+		pass
+
 	if args.version and platform.os.name == 'posix': 
 		print(version)
 		exit()

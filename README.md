@@ -1,6 +1,7 @@
 # Podcatch: Podcast Aggregator
 
-Note: Currently this release is insecure due to Paramiko & requests modules. Use at your own risk.
+Note: Currently this release is insecure due to Paramiko & requests modules. Use at your own risk.Will update as t
+ime allows
 
 A command line podcast manager for posix systems coded in Python3 and sql for data management. The program manages subscriptions, downloads episodes, and maintains a database of all tracks. Will also transfer these to your android phone via SSH and, in the future, bluetooth.
 
